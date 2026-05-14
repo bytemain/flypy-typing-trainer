@@ -5,6 +5,7 @@
   const STORAGE_KEY = 'xh_shape_trainer_state_v2_portable';
   const THEME_KEY = 'xh_shape_trainer_theme_v1';
   const MODE_KEY = 'xh_shape_trainer_mode_v1';
+  const CHAPTER_KEY = 'xh_shape_trainer_chapter_v1';
   const MIDDLE_PARTS_KEY = 'xh_shape_trainer_middle_parts_v1';
   const AUTO_SOUND_KEY = 'xh_shape_trainer_auto_sound_v1';
   const DEFAULT_MODE = 'copy4';
@@ -22,7 +23,8 @@
     '的': 'de',
     '句': 'ju',
     '系': 'xi',
-    '见': 'jm'
+    '见': 'jm',
+    '说': 'uo'
   };
   const HAN_RE = /[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}]/u;
   const ONE_HAN_RE = /^(?:[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}])$/u;
@@ -41,12 +43,12 @@
     showAnswerBtn: qs('#showAnswerBtn'), markKnownBtn: qs('#markKnownBtn'), markWrongBtn: qs('#markWrongBtn'),
     searchInput: qs('#searchInput'), searchBtn: qs('#searchBtn'), searchResults: qs('#searchResults'), wrongList: qs('#wrongList'),
     manualText: qs('#manualText'), manualImportBtn: qs('#manualImportBtn'), downloadMistakesBtn: qs('#downloadMistakesBtn'),
-    exportBtn: qs('#exportBtn'), importProgressInput: qs('#importProgressInput'), settingsResetBtn: qs('#settingsResetBtn'), themeBtn: qs('#themeBtn'), settingsBtn: qs('#settingsBtn'), settingsModal: qs('#settingsModal'), middlePartsInput: qs('#middlePartsInput'), autoSoundInput: qs('#autoSoundInput'), noticeBtn: qs('#noticeBtn'), noticeModal: qs('#noticeModal')
+    exportBtn: qs('#exportBtn'), importProgressInput: qs('#importProgressInput'), settingsResetBtn: qs('#settingsResetBtn'), chapterSelect: qs('#chapterSelect'), themeBtn: qs('#themeBtn'), settingsBtn: qs('#settingsBtn'), settingsModal: qs('#settingsModal'), middlePartsInput: qs('#middlePartsInput'), autoSoundInput: qs('#autoSoundInput'), noticeBtn: qs('#noticeBtn'), noticeModal: qs('#noticeModal'), loadingScreen: qs('#loadingScreen'), loadingText: qs('#loadingText')
   };
   els.modeTabs = Array.from(document.querySelectorAll('.mode-tabs [data-mode]'));
 
   const state = {
-    items: new Map(), sessions: { total: 0, correct: 0 }, importLog: [], current: null, queue: [], rootMap: new Map(), charCodes: new Map(), composing: false, copyAnswer: '', showMiddleParts: false, autoSoundCode: false
+    items: new Map(), sessions: { total: 0, correct: 0 }, importLog: [], current: null, queue: [], rootMap: new Map(), charCodes: new Map(), composing: false, copyAnswer: '', mode: DEFAULT_MODE, chapter: 'chars', showMiddleParts: false, autoSoundCode: false
   };
 
   init();
@@ -60,12 +62,17 @@
     loadState();
     bindEvents();
     const savedMode = localStorage.getItem(MODE_KEY);
-    els.modeSelect.value = ['copy4', 'mask2'].includes(savedMode) ? savedMode : DEFAULT_MODE;
-    if (!state.items.size) loadEmbeddedDeck(true);
+    state.mode = ['copy4', 'mask2'].includes(savedMode) ? savedMode : DEFAULT_MODE;
+    if (els.modeSelect) els.modeSelect.value = state.mode;
+    const savedChapter = localStorage.getItem(CHAPTER_KEY);
+    state.chapter = ['chars', 'words'].includes(savedChapter) ? savedChapter : 'chars';
+    if (els.chapterSelect) els.chapterSelect.value = state.chapter;
+    if (!state.items.size || !hasWordItems()) loadEmbeddedDeck(true);
     else { updateAll(); setIntro('已恢复上次进度', `共有 ${state.items.size} 个条目，可以继续练习。`); }
     buildCharCodeMap();
     buildRootMap();
     nextQuestion();
+    finishLoading();
   }
 
   function bindEvents() {
@@ -76,47 +83,50 @@
       els.dropZone.addEventListener('dragleave', () => els.dropZone.classList.remove('drag'));
       els.dropZone.addEventListener('drop', e => { e.preventDefault(); els.dropZone.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
     }
-    els.loadEmbeddedBtn.addEventListener('click', () => loadEmbeddedDeck(false));
-    els.clearDeckBtn.addEventListener('click', resetProgress);
-    els.startBtn.addEventListener('click', nextQuestion);
-    els.shuffleBtn.addEventListener('click', () => { buildQueue(true); toast('已重新洗牌。'); });
-    els.answerForm.addEventListener('submit', onSubmitAnswer);
-    els.answerInput.addEventListener('beforeinput', onBeforeInput);
-    els.answerInput.addEventListener('input', onAnswerInput);
-    els.answerInput.addEventListener('compositionstart', () => { state.composing = true; });
-    els.answerInput.addEventListener('compositionupdate', onCompositionUpdate);
-    els.answerInput.addEventListener('compositionend', onCompositionEnd);
-    els.showAnswerBtn.addEventListener('click', showAnswer);
-    els.markKnownBtn.addEventListener('click', markKnown);
-    els.markWrongBtn.addEventListener('click', markWrong);
-    els.searchBtn.addEventListener('click', renderSearch);
-    els.searchInput.addEventListener('input', debounce(renderSearch, 120));
-    els.filterInput.addEventListener('input', debounce(() => { buildQueue(true); updateStats(); }, 180));
-    els.modeSelect.addEventListener('change', () => setPracticeMode(els.modeSelect.value));
+    if (els.loadEmbeddedBtn) els.loadEmbeddedBtn.addEventListener('click', () => loadEmbeddedDeck(false));
+    if (els.clearDeckBtn) els.clearDeckBtn.addEventListener('click', resetProgress);
+    if (els.startBtn) els.startBtn.addEventListener('click', nextQuestion);
+    if (els.shuffleBtn) els.shuffleBtn.addEventListener('click', () => { buildQueue(true); toast('已重新洗牌。'); });
+    if (els.answerForm) els.answerForm.addEventListener('submit', onSubmitAnswer);
+    if (els.answerInput) {
+      els.answerInput.addEventListener('beforeinput', onBeforeInput);
+      els.answerInput.addEventListener('input', onAnswerInput);
+      els.answerInput.addEventListener('compositionstart', () => { state.composing = true; });
+      els.answerInput.addEventListener('compositionupdate', onCompositionUpdate);
+      els.answerInput.addEventListener('compositionend', onCompositionEnd);
+    }
+    if (els.showAnswerBtn) els.showAnswerBtn.addEventListener('click', showAnswer);
+    if (els.markKnownBtn) els.markKnownBtn.addEventListener('click', markKnown);
+    if (els.markWrongBtn) els.markWrongBtn.addEventListener('click', markWrong);
+    if (els.searchBtn) els.searchBtn.addEventListener('click', renderSearch);
+    if (els.searchInput) els.searchInput.addEventListener('input', debounce(renderSearch, 120));
+    if (els.filterInput) els.filterInput.addEventListener('input', debounce(() => { buildQueue(true); updateStats(); }, 180));
+    if (els.modeSelect) els.modeSelect.addEventListener('change', () => setPracticeMode(els.modeSelect.value));
     els.modeTabs.forEach(btn => btn.addEventListener('click', () => setPracticeMode(btn.dataset.mode)));
-    els.scopeSelect.addEventListener('change', () => { buildQueue(true); updateStats(); });
-    els.manualImportBtn.addEventListener('click', importManual);
-    els.downloadMistakesBtn.addEventListener('click', downloadMistakes);
-    els.exportBtn.addEventListener('click', exportProgress);
-    els.importProgressInput.addEventListener('change', importProgress);
-    els.settingsResetBtn.addEventListener('click', resetProgress);
-    els.themeBtn.addEventListener('click', toggleTheme);
-    els.settingsBtn.addEventListener('click', openSettings);
-    els.middlePartsInput.addEventListener('change', () => setMiddleParts(els.middlePartsInput.checked));
-    els.autoSoundInput.addEventListener('change', () => setAutoSoundCode(els.autoSoundInput.checked));
-    els.noticeBtn.addEventListener('click', openNotice);
-    els.promptSub.addEventListener('pointerdown', revealMaskedCode);
-    els.promptSub.addEventListener('pointerleave', hideMaskedCode);
-    els.promptSub.addEventListener('contextmenu', e => {
+    if (els.scopeSelect) els.scopeSelect.addEventListener('change', () => { buildQueue(true); updateStats(); });
+    if (els.manualImportBtn) els.manualImportBtn.addEventListener('click', importManual);
+    if (els.downloadMistakesBtn) els.downloadMistakesBtn.addEventListener('click', downloadMistakes);
+    if (els.exportBtn) els.exportBtn.addEventListener('click', exportProgress);
+    if (els.importProgressInput) els.importProgressInput.addEventListener('change', importProgress);
+    if (els.settingsResetBtn) els.settingsResetBtn.addEventListener('click', resetProgress);
+    if (els.chapterSelect) els.chapterSelect.addEventListener('change', () => setChapter(els.chapterSelect.value));
+    if (els.themeBtn) els.themeBtn.addEventListener('click', toggleTheme);
+    if (els.settingsBtn) els.settingsBtn.addEventListener('click', openSettings);
+    if (els.middlePartsInput) els.middlePartsInput.addEventListener('change', () => setMiddleParts(els.middlePartsInput.checked));
+    if (els.autoSoundInput) els.autoSoundInput.addEventListener('change', () => setAutoSoundCode(els.autoSoundInput.checked));
+    if (els.noticeBtn) els.noticeBtn.addEventListener('click', openNotice);
+    if (els.promptSub) els.promptSub.addEventListener('pointerdown', revealMaskedCode);
+    if (els.promptSub) els.promptSub.addEventListener('pointerleave', hideMaskedCode);
+    if (els.promptSub) els.promptSub.addEventListener('contextmenu', e => {
       if (state.current && state.current.kind === 'mask2' && e.target.closest('.copy-cell.masked')) e.preventDefault();
     });
     window.addEventListener('pointerup', hideMaskedCode);
     window.addEventListener('pointercancel', hideMaskedCode);
-    els.settingsModal.querySelectorAll('[data-close-settings]').forEach(el => el.addEventListener('click', closeSettings));
-    els.noticeModal.querySelectorAll('[data-close-notice]').forEach(el => el.addEventListener('click', closeNotice));
+    if (els.settingsModal) els.settingsModal.querySelectorAll('[data-close-settings]').forEach(el => el.addEventListener('click', closeSettings));
+    if (els.noticeModal) els.noticeModal.querySelectorAll('[data-close-notice]').forEach(el => el.addEventListener('click', closeNotice));
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && !els.settingsModal.hidden) { closeSettings(); return; }
-      if (e.key === 'Escape' && !els.noticeModal.hidden) { closeNotice(); return; }
+      if (e.key === 'Escape' && els.settingsModal && !els.settingsModal.hidden) { closeSettings(); return; }
+      if (e.key === 'Escape' && els.noticeModal && !els.noticeModal.hidden) { closeNotice(); return; }
       if (handleCopyKeydown(e)) return;
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isTyping()) {
         e.preventDefault();
@@ -135,20 +145,32 @@
       return;
     }
     const records = bundle.entries.map(e => ({
-      char: e.c, fullCode: e.f, soundCode: e.f.slice(0, 2), shapeCode: e.f.slice(2, 4),
+      char: e.c, label: e.c, fullCode: e.f, soundCode: e.f.slice(0, 2), shapeCode: e.f.slice(2, 4), kind: 'char',
       source: `${e.s}:${e.l}`, rank: e.r, common: !!e.x
+    }));
+    const words = (window.XHUP_WORD_DATA && Array.isArray(window.XHUP_WORD_DATA.entries) ? window.XHUP_WORD_DATA.entries : []).map(e => ({
+      char: e.w, label: e.w, fullCode: e.f, soundCode: e.f.slice(0, 2), shapeCode: e.f.slice(2, 4), kind: 'word',
+      source: `${e.s}:${e.l}`, rank: e.r, common: false
     }));
     const before = state.items.size;
     mergeParsed(records);
+    mergeParsed(words);
     const added = state.items.size - before;
     const meta = bundle.meta || {};
-    state.importLog.unshift({ name: meta.name || '内置码表', full: records.length, aux: 0, lines: records.length, used: records.length });
+    state.importLog.unshift({ name: meta.name || '内置码表', full: records.length + words.length, aux: 0, lines: records.length + words.length, used: records.length + words.length });
     state.importLog = state.importLog.slice(0, 20);
     saveState(); buildQueue(true); updateAll();
     buildCharCodeMap();
     buildRootMap();
     setIntro('内置码表已载入', `共 ${state.items.size} 个练习条目，默认从常用字开始。`);
     if (!auto) toast(added ? `已补充 ${added} 条内置记录。` : '内置码表已经载入。');
+  }
+
+  function hasWordItems() {
+    for (const item of state.items.values()) {
+      if (item.kind === 'word') return true;
+    }
+    return false;
   }
 
   async function handleFiles(fileList) {
@@ -239,7 +261,7 @@
       const key = makeKey(rec);
       const existing = state.items.get(key);
       if (!existing) {
-        state.items.set(key, { key, char: rec.char, fullCode: rec.fullCode || '', soundCode: rec.soundCode || (rec.fullCode ? rec.fullCode.slice(0,2) : ''), shapeCode: rec.shapeCode || (rec.fullCode ? rec.fullCode.slice(2,4) : ''), sources: rec.source ? [rec.source] : [], seen: 0, correct: 0, wrong: 0, streak: 0, due: now, interval: 0, createdAt: now, updatedAt: now, rank: rec.rank || 999999, common: !!rec.common });
+        state.items.set(key, { key, char: rec.char, label: rec.label || rec.char, kind: rec.kind || (isOneHan(rec.char) ? 'char' : 'word'), fullCode: rec.fullCode || '', soundCode: rec.soundCode || (rec.fullCode ? rec.fullCode.slice(0,2) : ''), shapeCode: rec.shapeCode || (rec.fullCode ? rec.fullCode.slice(2,4) : ''), sources: rec.source ? [rec.source] : [], seen: 0, correct: 0, wrong: 0, streak: 0, due: now, interval: 0, createdAt: now, updatedAt: now, rank: rec.rank || 999999, common: !!rec.common });
       } else {
         if (rec.fullCode && !existing.fullCode) { existing.fullCode = rec.fullCode; existing.soundCode = rec.soundCode; existing.shapeCode = rec.shapeCode; }
         if (rec.source && !existing.sources.includes(rec.source)) existing.sources.push(rec.source);
@@ -252,8 +274,11 @@
 
   function buildQueue(force = false) {
     if (!force && state.queue.length) return;
-    const scope = els.scopeSelect.value; const filter = els.filterInput.value.trim().toLowerCase(); const now = Date.now();
+    const scope = state.chapter === 'words' ? 'all' : (els.scopeSelect ? els.scopeSelect.value : 'core');
+    const filter = els.filterInput ? els.filterInput.value.trim().toLowerCase() : '';
+    const now = Date.now();
     let items = Array.from(state.items.values()).filter(item => item.shapeCode);
+    items = items.filter(item => (state.chapter === 'words') ? item.kind === 'word' : item.kind !== 'word');
     if (filter) {
       items = items.filter(item => {
         const src = item.sources.join(' ').toLowerCase(); const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : '');
@@ -283,16 +308,17 @@
   }
 
   function nextQuestion() {
-    if (!state.items.size) { setIntro('先载入码表', '点“载入内置码表”即可开始。'); return; }
+    if (!state.items.size) { setIntro('正在载入码表', '准备好后就能开始。'); return; }
     buildQueue();
-    if (!state.queue.length) { setIntro('当前范围没有题目', '可以切到“全部随机”，或清空筛选条件。'); return; }
+    if (!state.queue.length) { setIntro('当前范围没有题目', '可以重置进度后重新开始。'); return; }
     const key = state.queue.shift(); const item = state.items.get(key); if (!item) return nextQuestion();
-    const mode = pickMode(item); state.current = { key, kind: mode }; state.copyAnswer = ''; renderQuestion(); clearFeedback(); els.answerInput.value = ''; focusAnswerInput(); saveState();
+    const mode = pickMode(item); state.current = { key, kind: mode }; state.copyAnswer = ''; renderQuestion(); clearFeedback(); if (els.answerInput) els.answerInput.value = ''; focusAnswerInput(); saveState();
   }
 
   function setPracticeMode(mode) {
-    els.modeSelect.value = mode;
-    localStorage.setItem(MODE_KEY, mode);
+    state.mode = ['copy4', 'mask2'].includes(mode) ? mode : DEFAULT_MODE;
+    if (els.modeSelect) els.modeSelect.value = state.mode;
+    localStorage.setItem(MODE_KEY, state.mode);
     updateModeTabs();
     if (!state.current) {
       nextQuestion();
@@ -305,18 +331,30 @@
     }
     state.current.kind = pickMode(item);
     state.copyAnswer = '';
-    els.answerInput.value = '';
+    if (els.answerInput) els.answerInput.value = '';
     clearFeedback();
     renderQuestion();
     focusAnswerInput();
   }
 
+  function setChapter(chapter) {
+    state.chapter = chapter === 'words' ? 'words' : 'chars';
+    if (els.chapterSelect) els.chapterSelect.value = state.chapter;
+    localStorage.setItem(CHAPTER_KEY, state.chapter);
+    state.queue = [];
+    state.current = null;
+    state.copyAnswer = '';
+    if (els.answerInput) els.answerInput.value = '';
+    buildQueue(true);
+    nextQuestion();
+  }
+
   function updateModeTabs() {
-    els.modeTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === els.modeSelect.value));
+    els.modeTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
   }
 
   function pickMode(item) {
-    const selected = els.modeSelect.value;
+    const selected = state.mode || (els.modeSelect && els.modeSelect.value) || DEFAULT_MODE;
     if (selected === 'mixed') { const choices = ['shape2']; if (item.fullCode) choices.push('full4', 'recognize'); return choices[Math.floor(Math.random()*choices.length)]; }
     if ((selected === 'full4' || selected === 'recognize' || selected === 'copy4' || selected === 'mask2') && !item.fullCode) return 'shape2';
     return selected;
@@ -326,46 +364,80 @@
     const quiz = state.current; if (!quiz) return; const item = state.items.get(quiz.key); if (!item) return;
     const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : '??' + item.shapeCode);
     updateModeTabs();
-    els.checkBtn.disabled = false;
-    els.checkBtn.textContent = '检查';
-    els.answerInput.removeAttribute('maxlength');
-    els.answerForm.classList.toggle('copy-hidden', quiz.kind === 'copy4' || quiz.kind === 'mask2');
-    els.modeBadge.textContent = quiz.kind === 'shape2' ? '只练后两码' : quiz.kind === 'copy4' ? '跟打模式' : quiz.kind === 'mask2' ? '掩码模式' : quiz.kind === 'full4' ? '完整四码' : '认码';
-    els.questionTitle.textContent = quiz.kind === 'shape2' ? '想后两码' : quiz.kind === 'copy4' ? '跟打完整四码' : quiz.kind === 'mask2' ? '看拆字想后两码' : quiz.kind === 'full4' ? '打完整四码' : '看码认字';
-    if (quiz.kind === 'shape2') {
+    if (els.checkBtn) {
+      els.checkBtn.disabled = false;
+      els.checkBtn.textContent = '检查';
+    }
+    if (els.answerInput) els.answerInput.removeAttribute('maxlength');
+    if (els.answerForm) els.answerForm.classList.toggle('copy-hidden', quiz.kind === 'copy4' || quiz.kind === 'mask2');
+    if (els.modeBadge) els.modeBadge.textContent = quiz.kind === 'shape2' ? '只练后两码' : quiz.kind === 'copy4' ? '跟打模式' : quiz.kind === 'mask2' ? '掩码模式' : quiz.kind === 'full4' ? '完整四码' : '认码';
+    if (els.questionTitle) els.questionTitle.textContent = quiz.kind === 'shape2' ? '想后两码' : quiz.kind === 'copy4' ? '跟打完整四码' : quiz.kind === 'mask2' ? '看拆字想后两码' : quiz.kind === 'full4' ? '打完整四码' : '看码认字';
+    if (item.kind === 'word') {
+      const plan = typingPlan(quiz.kind, item);
+      els.promptMeta.textContent = '词组';
+      els.promptMain.textContent = item.char;
+      els.promptMain.className = `prompt-main word-prompt word-len-${Math.min(Array.from(item.char).length, 8)}`;
+      els.promptSub.innerHTML = renderWordCode(item, quiz.kind === 'mask2');
+      if (els.questionSubtitle) els.questionSubtitle.textContent = `${item.char} = ${full}`;
+      if (els.answerInput) {
+        els.answerInput.placeholder = `跟打 ${full}`;
+        els.answerInput.maxLength = plan.expected.length;
+      }
+      if (els.checkBtn) {
+        els.checkBtn.disabled = true;
+        els.checkBtn.textContent = '自动';
+      }
+      updateCopyProgress('');
+    } else if (quiz.kind === 'shape2') {
       const decomp = getDecomp(item);
+      els.promptMain.className = 'prompt-main';
       els.promptMeta.textContent = '后两码'; els.promptMain.textContent = item.char;
       els.promptSub.innerHTML = item.soundCode ? `前两码：<code>${escapeHtml(item.soundCode)}</code>${renderShapeHint(item, decomp)}` : `请输入它的形码后两码${renderShapeHint(item, decomp)}`;
-      els.questionSubtitle.textContent = item.soundCode ? `${item.char} = ${item.soundCode} + ?${decomp.structure ? `，后两码拆作 ${decomp.structure}` : ''}` : '该条目来自辅码表，只有后两码。'; els.answerInput.placeholder = '例如 kp';
+      if (els.questionSubtitle) els.questionSubtitle.textContent = item.soundCode ? `${item.char} = ${item.soundCode} + ?${decomp.structure ? `，后两码拆作 ${decomp.structure}` : ''}` : '该条目来自辅码表，只有后两码。';
+      if (els.answerInput) els.answerInput.placeholder = '例如 kp';
     } else if (quiz.kind === 'copy4') {
       const plan = typingPlan(quiz.kind, item);
       els.promptMeta.textContent = '跟打';
+      els.promptMain.className = 'prompt-main';
       els.promptMain.textContent = item.char;
       els.promptSub.innerHTML = renderCodeBreakdown(item, { showRootHints: true, maskedHints: false });
-      els.questionSubtitle.textContent = `${item.char} = ${full}，照着完整四码打一遍。`;
-      els.answerInput.placeholder = plan.autoSound ? `跟打 ${item.shapeCode}` : `跟打 ${full}`;
-      els.answerInput.maxLength = plan.expected.length;
-      els.checkBtn.disabled = true;
-      els.checkBtn.textContent = '自动';
+      if (els.questionSubtitle) els.questionSubtitle.textContent = `${item.char} = ${full}，照着完整四码打一遍。`;
+      if (els.answerInput) {
+        els.answerInput.placeholder = plan.autoSound ? `跟打 ${item.shapeCode}` : `跟打 ${full}`;
+        els.answerInput.maxLength = plan.expected.length;
+      }
+      if (els.checkBtn) {
+        els.checkBtn.disabled = true;
+        els.checkBtn.textContent = '自动';
+      }
       updateCopyProgress('');
     } else if (quiz.kind === 'mask2') {
       const decomp = getDecomp(item);
       const plan = typingPlan(quiz.kind, item);
       els.promptMeta.textContent = '掩码';
+      els.promptMain.className = 'prompt-main';
       els.promptMain.textContent = item.char;
       els.promptSub.innerHTML = renderCodeBreakdown(item, { maskShape: true, maskSound: !plan.autoSound, showRootHints: true, maskedHints: true });
-      els.questionSubtitle.textContent = decomp.structure ? `${item.char}：看 ${decomp.structure}，输入后两码。` : `${item.char}：输入后两码。`;
-      els.answerInput.placeholder = plan.autoSound ? '输入后两码' : '输入完整四码';
-      els.answerInput.maxLength = plan.expected.length;
-      els.checkBtn.disabled = true;
-      els.checkBtn.textContent = '自动';
+      if (els.questionSubtitle) els.questionSubtitle.textContent = decomp.structure ? `${item.char}：看 ${decomp.structure}，输入后两码。` : `${item.char}：输入后两码。`;
+      if (els.answerInput) {
+        els.answerInput.placeholder = plan.autoSound ? '输入后两码' : '输入完整四码';
+        els.answerInput.maxLength = plan.expected.length;
+      }
+      if (els.checkBtn) {
+        els.checkBtn.disabled = true;
+        els.checkBtn.textContent = '自动';
+      }
       updateCopyProgress('');
     } else if (quiz.kind === 'full4') {
+      els.promptMain.className = 'prompt-main';
       els.promptMeta.textContent = '完整四码'; els.promptMain.textContent = item.char; els.promptSub.innerHTML = `请输入完整码；提示：后两码是你要练的部分`;
-      els.questionSubtitle.textContent = `${item.char} 的完整码是什么？`; els.answerInput.placeholder = '例如 xkkp';
+      if (els.questionSubtitle) els.questionSubtitle.textContent = `${item.char} 的完整码是什么？`;
+      if (els.answerInput) els.answerInput.placeholder = '例如 xkkp';
     } else {
+      els.promptMain.className = 'prompt-main';
       els.promptMeta.textContent = '认码'; els.promptMain.textContent = full; els.promptSub.innerHTML = `请输入这个编码对应的字`;
-      els.questionSubtitle.textContent = `看到 ${full}，能想到哪个字？`; els.answerInput.placeholder = '输入汉字';
+      if (els.questionSubtitle) els.questionSubtitle.textContent = `看到 ${full}，能想到哪个字？`;
+      if (els.answerInput) els.answerInput.placeholder = '输入汉字';
     }
   }
 
@@ -479,7 +551,7 @@
   function expectedAnswer(kind, item) { if (kind === 'copy4' || kind === 'mask2') return typingPlan(kind, item).expected; if (kind === 'shape2') return item.shapeCode; if (kind === 'full4') return item.fullCode || (item.soundCode + item.shapeCode); return item.char; }
   function typingPlan(kind, item) {
     const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`);
-    const autoSound = !!(state.autoSoundCode && (kind === 'copy4' || kind === 'mask2') && item.soundCode && item.shapeCode);
+    const autoSound = !!(item.kind !== 'word' && state.autoSoundCode && (kind === 'copy4' || kind === 'mask2') && item.soundCode && item.shapeCode);
     const useShapeOnly = autoSound;
     return { full, expected: useShapeOnly ? item.shapeCode : full, offset: useShapeOnly ? 2 : 0, autoSound };
   }
@@ -493,34 +565,54 @@
   }
 
   function showFeedback(ok, item, expected) {
+    if (!els.feedbackBox) return;
     const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`);
     const decomp = getDecomp(item);
     const shapeText = decomp.structure ? `；拆分 <code>${escapeHtml(decomp.structure)}</code>` : '';
     els.feedbackBox.hidden=false; els.feedbackBox.className=`feedback ${ok?'ok':'bad'}`;
     els.feedbackBox.innerHTML = ok ? `对。<strong>${escapeHtml(item.char)}</strong>：后两码 <code>${escapeHtml(item.shapeCode)}</code>${shapeText}，完整码 <code>${escapeHtml(full)}</code>` : `不对。<strong>${escapeHtml(item.char)}</strong> 的答案是 <code>${escapeHtml(expected)}</code>；后两码 <code>${escapeHtml(item.shapeCode)}</code>${shapeText}，完整码 <code>${escapeHtml(full)}</code>`;
   }
-  function showAnswer() { if (!state.current) return; const item = state.items.get(state.current.key); if (!item) return; const expected = expectedAnswer(state.current.kind, item); const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`); const decomp = getDecomp(item); els.feedbackBox.hidden=false; els.feedbackBox.className='feedback'; els.feedbackBox.innerHTML=`答案：<strong>${escapeHtml(item.char)}</strong> 后两码 <code>${escapeHtml(item.shapeCode)}</code>${decomp.structure?`；拆分 <code>${escapeHtml(decomp.structure)}</code>`:''}${item.soundCode?`；前两码 <code>${escapeHtml(item.soundCode)}</code>`:''}；完整码 <code>${escapeHtml(full)}</code>${decomp.components?`<br>完整拆分：<code>${escapeHtml(decomp.components)}</code>`:''}<br>本题应输入：<code>${escapeHtml(expected)}</code>`; }
+  function showAnswer() {
+    if (!state.current) return;
+    const item = state.items.get(state.current.key); if (!item) return;
+    const expected = expectedAnswer(state.current.kind, item);
+    const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`);
+    const decomp = getDecomp(item);
+    if (!els.feedbackBox) {
+      toast(`${item.char}：${expected} / ${full}${decomp.structure ? ` / ${decomp.structure}` : ''}`);
+      return;
+    }
+    els.feedbackBox.hidden=false; els.feedbackBox.className='feedback'; els.feedbackBox.innerHTML=`答案：<strong>${escapeHtml(item.char)}</strong> 后两码 <code>${escapeHtml(item.shapeCode)}</code>${decomp.structure?`；拆分 <code>${escapeHtml(decomp.structure)}</code>`:''}${item.soundCode?`；前两码 <code>${escapeHtml(item.soundCode)}</code>`:''}；完整码 <code>${escapeHtml(full)}</code>${decomp.components?`<br>完整拆分：<code>${escapeHtml(decomp.components)}</code>`:''}<br>本题应输入：<code>${escapeHtml(expected)}</code>`;
+  }
   function markKnown() { if (!state.current) return; const item = state.items.get(state.current.key); if (!item) return; applyResult(item,true); saveState(); updateAll(); nextQuestion(); }
   function markWrong() { if (!state.current) return; const item = state.items.get(state.current.key); if (!item) return; applyResult(item,false); saveState(); updateAll(); showAnswer(); }
-  function clearFeedback() { els.feedbackBox.hidden=true; els.feedbackBox.textContent=''; els.feedbackBox.className='feedback'; }
+  function clearFeedback() { if (!els.feedbackBox) return; els.feedbackBox.hidden=true; els.feedbackBox.textContent=''; els.feedbackBox.className='feedback'; }
+  function finishLoading() {
+    if (els.loadingText) els.loadingText.textContent = '完成';
+    requestAnimationFrame(() => {
+      document.body.classList.remove('app-loading');
+      document.body.classList.add('app-ready');
+    });
+  }
 
   function renderSearch() {
+    if (!els.searchInput || !els.searchResults) return;
     const q = normalizeAnswer(els.searchInput.value);
     if (!q) { els.searchResults.className='results empty'; els.searchResults.textContent='输入字或编码后搜索。'; return; }
     const list = Array.from(state.items.values()).filter(item => { const full=item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : ''); return item.char.includes(q) || full.includes(q) || item.soundCode.includes(q) || item.shapeCode.includes(q); }).slice(0,100);
     if (!list.length) { els.searchResults.className='results empty'; els.searchResults.textContent='没有找到。'; return; }
     els.searchResults.className='results'; els.searchResults.innerHTML=list.map(renderItem).join('');
   }
-  function renderWrongList() { const wrongs=Array.from(state.items.values()).filter(i=>i.wrong>0).sort((a,b)=>b.wrong-a.wrong||b.updatedAt-a.updatedAt).slice(0,30); if(!wrongs.length){els.wrongList.className='wrong-list empty';els.wrongList.textContent='还没有错题。';return;} els.wrongList.className='wrong-list';els.wrongList.innerHTML=wrongs.map(renderItem).join(''); }
+  function renderWrongList() { if (!els.wrongList) return; const wrongs=Array.from(state.items.values()).filter(i=>i.wrong>0).sort((a,b)=>b.wrong-a.wrong||b.updatedAt-a.updatedAt).slice(0,30); if(!wrongs.length){els.wrongList.className='wrong-list empty';els.wrongList.textContent='还没有错题。';return;} els.wrongList.className='wrong-list';els.wrongList.innerHTML=wrongs.map(renderItem).join(''); }
   function renderItem(item) { const full=item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`); const src=item.sources[0] ? item.sources[0].replace(/^.*\//,'') : '手动/未知来源'; return `<div class="result-item" title="${escapeHtml(item.sources.join('\n'))}"><div class="result-char">${escapeHtml(item.char)}</div><div><div class="result-code">${escapeHtml(full)} <span class="result-meta">前两码 ${escapeHtml(item.soundCode||'—')} · 后两码 ${escapeHtml(item.shapeCode||'—')}</span>${item.common?'<span class="pill">常用</span>':''}</div><div class="result-meta">见 ${item.seen} · 对 ${item.correct} · 错 ${item.wrong} · ${escapeHtml(src)}</div></div><button class="ghost" type="button" onclick="window.__xhTrainerPick('${encodeURIComponent(item.key)}')">练</button></div>`; }
   window.__xhTrainerPick = function(encodedKey){ const key=decodeURIComponent(encodedKey); if(!state.items.has(key))return; state.current={key,kind:pickMode(state.items.get(key))}; renderQuestion(); clearFeedback(); focusAnswerInput(); };
 
-  function importManual() { const text=els.manualText.value; if(!text.trim()) return toast('先粘贴一点码表内容。'); const res=parseTextToEntries(text,'manual'); mergeParsed(res.records); state.importLog.unshift(res.log); saveState(); buildQueue(true); updateAll(); setIntro('手动导入完成',`导入 ${res.log.used} 条可用记录。`); toast(`手动导入 ${res.log.used} 条。`); }
+  function importManual() { if (!els.manualText) return; const text=els.manualText.value; if(!text.trim()) return toast('先粘贴一点码表内容。'); const res=parseTextToEntries(text,'manual'); mergeParsed(res.records); state.importLog.unshift(res.log); saveState(); buildQueue(true); updateAll(); setIntro('手动导入完成',`导入 ${res.log.used} 条可用记录。`); toast(`手动导入 ${res.log.used} 条。`); }
   function resetProgress() { const ok=confirm('确定清空练习进度吗？内置码表会保留/重新载入。'); if(!ok)return; state.items.clear(); state.sessions={total:0,correct:0}; state.importLog=[]; state.current=null; state.queue=[]; localStorage.removeItem(STORAGE_KEY); loadEmbeddedDeck(false); updateAll(); }
   function updateAll(){ updateStats(); renderSearch(); renderWrongList(); updateImportSummary(); }
-  function updateStats(){ const items=Array.from(state.items.values()); const now=Date.now(); const wrong=items.filter(i=>i.wrong>0).length; const acc=state.sessions.total?`${Math.round(state.sessions.correct/state.sessions.total*100)}%`:'—'; els.statItems.textContent=items.length; els.statDue.textContent=items.filter(i=>i.shapeCode&&i.due<=now).length; els.statWrong.textContent=wrong; els.statAcc.textContent=acc; if (els.liveTotal) els.liveTotal.textContent=state.sessions.total; if (els.liveCorrect) els.liveCorrect.textContent=state.sessions.correct; if (els.liveAcc) els.liveAcc.textContent=acc; if (els.liveWrong) els.liveWrong.textContent=wrong; }
-  function updateImportSummary(){ if(!state.importLog.length){els.importSummary.textContent='还没有导入码表。'; return;} const latest=state.importLog[0]; const withFull=Array.from(state.items.values()).filter(i=>i.fullCode).length; const core=Array.from(state.items.values()).filter(i=>i.common).length; els.importSummary.innerHTML=`内置/导入：<code>${escapeHtml(latest.name.replace(/^.*\//,''))}</code><br>完整四码条目：${withFull}；常用范围：${core}。`; }
-  function setIntro(title, subtitle){ els.questionTitle.textContent=title; els.questionSubtitle.textContent=subtitle; if(!state.current){els.modeBadge.textContent=state.items.size?'可开始':'未载入'; els.promptMeta.textContent='提示'; els.promptMain.textContent=state.items.size?'练':'鹤'; els.promptSub.textContent=subtitle;} }
+  function updateStats(){ const items=Array.from(state.items.values()); const now=Date.now(); const wrong=items.filter(i=>i.wrong>0).length; const acc=state.sessions.total?`${Math.round(state.sessions.correct/state.sessions.total*100)}%`:'—'; if (els.statItems) els.statItems.textContent=items.length; if (els.statDue) els.statDue.textContent=items.filter(i=>i.shapeCode&&i.due<=now).length; if (els.statWrong) els.statWrong.textContent=wrong; if (els.statAcc) els.statAcc.textContent=acc; if (els.liveTotal) els.liveTotal.textContent=state.sessions.total; if (els.liveCorrect) els.liveCorrect.textContent=state.sessions.correct; if (els.liveAcc) els.liveAcc.textContent=acc; if (els.liveWrong) els.liveWrong.textContent=wrong; }
+  function updateImportSummary(){ if(!els.importSummary) return; if(!state.importLog.length){els.importSummary.textContent='还没有导入码表。'; return;} const latest=state.importLog[0]; const withFull=Array.from(state.items.values()).filter(i=>i.fullCode).length; const core=Array.from(state.items.values()).filter(i=>i.common).length; els.importSummary.innerHTML=`内置/导入：<code>${escapeHtml(latest.name.replace(/^.*\//,''))}</code><br>完整四码条目：${withFull}；常用范围：${core}。`; }
+  function setIntro(title, subtitle){ if (els.questionTitle) els.questionTitle.textContent=title; if (els.questionSubtitle) els.questionSubtitle.textContent=subtitle; if(!state.current){ if (els.modeBadge) els.modeBadge.textContent=state.items.size?'可开始':'未载入'; if (els.promptMeta) els.promptMeta.textContent='提示'; if (els.promptMain) { els.promptMain.className='prompt-main'; els.promptMain.textContent=state.items.size?'练':'鹤'; } if (els.promptSub) els.promptSub.textContent=subtitle;} }
   function renderCodeBreakdown(item, options = {}) {
     const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`);
     const decomp = getDecomp(item);
@@ -537,6 +629,15 @@
     return `<div class="copy-code${middle ? ' has-middle-parts' : ''}" aria-label="完整四码">${letters}</div>`;
   }
 
+  function renderWordCode(item, masked) {
+    const full = item.fullCode || '';
+    const letters = full.split('').map((ch, index) => {
+      const shown = masked ? '•' : ch;
+      return `<div class="copy-cell word-cell${masked ? ' masked' : ''}"><em aria-hidden="true">&nbsp;</em><span data-code="${escapeHtml(ch)}">${escapeHtml(shown)}</span></div>`;
+    }).join('');
+    return `<div class="copy-code word-code" aria-label="词的全码">${letters}</div>`;
+  }
+
   function getMiddleParts(decomp) {
     const parts = String(decomp.components || '').split(/\s+/).filter(Boolean);
     const edges = String(decomp.structure || '').split(/\s+/).filter(Boolean);
@@ -547,6 +648,7 @@
     return parts.slice(start + 1, end);
   }
   function getDecomp(item) {
+    if (!item || item.kind === 'word') return { structure: '', components: '' };
     const rec = window.XHUP_DECOMP_DATA && window.XHUP_DECOMP_DATA.entries && window.XHUP_DECOMP_DATA.entries[item.char];
     if (!rec) return { structure: '', components: '' };
     return { structure: rec.structure || '', components: rec.components || '' };
@@ -669,7 +771,7 @@
       span.classList.remove('revealed');
     });
   }
-  function focusAnswerInput() { requestAnimationFrame(() => els.answerInput.focus({ preventScroll: true })); }
+  function focusAnswerInput() { if (!els.answerInput) return; requestAnimationFrame(() => els.answerInput.focus({ preventScroll: true })); }
   function isCodeSeparatorKey(key) { return key === ' ' || key === 'Spacebar' || /^[;',./，。、；‘’“”]$/.test(key); }
   function extractLatinAnswer(raw, fallback) {
     const expectedLength = state.current && state.current.key ? expectedAnswer(state.current.kind, state.items.get(state.current.key) || {}).length : 4;
@@ -685,15 +787,15 @@
   function downloadText(filename,text){ const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
   function toggleTheme(){ const next=document.documentElement.dataset.theme==='dark'?'':'dark'; if(next)document.documentElement.dataset.theme=next; else delete document.documentElement.dataset.theme; localStorage.setItem(THEME_KEY,next); }
   function setMiddleParts(enabled){ state.showMiddleParts = !!enabled; localStorage.setItem(MIDDLE_PARTS_KEY, state.showMiddleParts ? '1' : '0'); updateSettingsToggles(); renderQuestion(); focusAnswerInput(); }
-  function setAutoSoundCode(enabled){ state.autoSoundCode = !!enabled; state.copyAnswer = ''; els.answerInput.value = ''; localStorage.setItem(AUTO_SOUND_KEY, state.autoSoundCode ? '1' : '0'); updateSettingsToggles(); renderQuestion(); focusAnswerInput(); }
+  function setAutoSoundCode(enabled){ state.autoSoundCode = !!enabled; state.copyAnswer = ''; if (els.answerInput) els.answerInput.value = ''; localStorage.setItem(AUTO_SOUND_KEY, state.autoSoundCode ? '1' : '0'); updateSettingsToggles(); renderQuestion(); focusAnswerInput(); }
   function updateSettingsToggles(){ if (els.middlePartsInput) els.middlePartsInput.checked = state.showMiddleParts; if (els.autoSoundInput) els.autoSoundInput.checked = state.autoSoundCode; }
-  function openSettings(){ updateSettingsToggles(); els.settingsModal.hidden=false; document.body.classList.add('modal-open'); }
-  function closeSettings(){ els.settingsModal.hidden=true; document.body.classList.remove('modal-open'); focusAnswerInput(); }
-  function openNotice(){ els.noticeModal.hidden=false; document.body.classList.add('modal-open'); }
-  function closeNotice(){ els.noticeModal.hidden=true; document.body.classList.remove('modal-open'); focusAnswerInput(); }
+  function openSettings(){ if (!els.settingsModal) return; updateSettingsToggles(); els.settingsModal.hidden=false; document.body.classList.add('modal-open'); }
+  function closeSettings(){ if (!els.settingsModal) return; els.settingsModal.hidden=true; document.body.classList.remove('modal-open'); focusAnswerInput(); }
+  function openNotice(){ if (!els.noticeModal) return; els.noticeModal.hidden=false; document.body.classList.add('modal-open'); }
+  function closeNotice(){ if (!els.noticeModal) return; els.noticeModal.hidden=true; document.body.classList.remove('modal-open'); focusAnswerInput(); }
   function toast(msg){ const div=document.createElement('div'); div.className='toast'; div.textContent=msg; document.body.appendChild(div); setTimeout(()=>div.remove(),2300); }
   function qs(sel){ return document.querySelector(sel); }
   function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function debounce(fn,ms){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms); }; }
-  function isTyping(){ const el=document.activeElement; return el && ['INPUT','TEXTAREA','SELECT'].includes(el.tagName); }
+  function isTyping(){ const el=document.activeElement; return el && el !== els.answerInput && ['INPUT','TEXTAREA','SELECT'].includes(el.tagName); }
 })();

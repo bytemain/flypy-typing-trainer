@@ -6,7 +6,7 @@
   <title>小鹤音形练习器</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="app-loading">
   <header class="topbar">
     <div class="brand">
       <div class="logo" aria-hidden="true">鹤</div>
@@ -16,6 +16,12 @@
       </div>
     </div>
     <div class="top-actions">
+      <label class="chapter-select" aria-label="章节选择">
+        <select id="chapterSelect">
+          <option value="chars">单字</option>
+          <option value="words">构词规则</option>
+        </select>
+      </label>
       <div class="mode-tabs" aria-label="练习模式">
         <button type="button" data-mode="copy4" class="active">跟打</button>
         <button type="button" data-mode="mask2">掩码</button>
@@ -30,141 +36,22 @@
   </header>
 
   <main class="layout">
-    <aside class="panel sidebar">
-      <section>
-        <h2>1. 码表</h2>
-        <p class="hint">已打包内置小鹤音形码表；别人解压后双击 <code>index.html</code> 即可使用，不需要选择 Rime 文件夹。</p>
-        <div class="mini-grid">
-          <button id="loadEmbeddedBtn" type="button">载入内置码表</button>
-          <button id="clearDeckBtn" type="button" class="danger ghost">重置进度</button>
-        </div>
-        <details class="compact-details">
-          <summary>高级：导入自己的 Rime 码表</summary>
-          <p class="hint small">可选功能。支持拖入 <code>.dict.yaml</code>、<code>.yaml</code>、<code>.txt</code>、<code>.tsv</code>。</p>
-          <label class="filepick secondary">
-            <span>选择 Rime 文件夹</span>
-            <input id="folderInput" type="file" webkitdirectory directory multiple />
-          </label>
-          <label class="filepick secondary">
-            <span>选择单个/多个文件</span>
-            <input id="fileInput" type="file" multiple accept=".yaml,.yml,.txt,.dict,.tsv,.csv" />
-          </label>
-          <div id="dropZone" class="dropzone">也可以把文件拖到这里</div>
-        </details>
-      </section>
-
-      <section>
-        <h2>2. 练习设置</h2>
-        <label class="field">
-          <span>练习模式</span>
-          <select id="modeSelect">
-            <option value="shape2">形码练习：xk → kp</option>
-            <option value="copy4" selected>四码跟打：形 / xkkp → xkkp</option>
-            <option value="mask2">形码掩码：拆字 → 后两码</option>
-            <option value="full4">完整四码：形 → xkkp</option>
-            <option value="recognize">认码：xkkp → 形</option>
-            <option value="mixed">混合模式</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>题目范围</span>
-          <select id="scopeSelect">
-            <option value="core" selected>常用字优先（推荐）</option>
-            <option value="due">到期/错题/新字</option>
-            <option value="all">全部随机</option>
-            <option value="wrong">只练错题</option>
-            <option value="new">只练新字</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>筛选</span>
-          <input id="filterInput" type="search" placeholder="字 / 编码 / 前两码 / 后两码：xk、形、kp" />
-        </label>
-        <div class="mini-grid">
-          <button id="startBtn" type="button">开始/下一题</button>
-          <button id="shuffleBtn" type="button" class="ghost">重新洗牌</button>
-        </div>
-      </section>
-
-      <section>
-        <h2>统计</h2>
-        <div class="stats" id="statsBox">
-          <div><b id="statItems">0</b><span>条目</span></div>
-          <div><b id="statDue">0</b><span>待复习</span></div>
-          <div><b id="statWrong">0</b><span>错题</span></div>
-          <div><b id="statAcc">—</b><span>准确率</span></div>
-        </div>
-        <p id="importSummary" class="hint small">正在准备内置码表。</p>
-      </section>
-    </aside>
-
     <section class="panel trainer">
-      <div class="trainer-head">
-        <div>
-          <h2 id="questionTitle">正在载入内置码表</h2>
-          <p id="questionSubtitle" class="hint">载入后直接点“开始/下一题”。</p>
-        </div>
-        <div class="badge" id="modeBadge">准备中</div>
-      </div>
-
       <div class="card" id="card">
-        <div id="promptMeta" class="prompt-meta">题目</div>
-        <div id="promptMain" class="prompt-main">鹤</div>
-        <div id="promptSub" class="prompt-sub">直接打开就能练音形</div>
+        <div id="promptMeta" class="prompt-meta"></div>
+        <div id="promptMain" class="prompt-main"></div>
+        <div id="promptSub" class="prompt-sub"></div>
       </div>
 
-      <form id="answerForm" class="answerbar" autocomplete="off">
-        <input id="answerInput" type="text" inputmode="text" autocapitalize="off" spellcheck="false" autofocus placeholder="输入答案后按 Enter，例如 kp 或 xkkp" />
-        <button id="checkBtn" type="submit">检查</button>
-      </form>
+      <input id="answerInput" class="hidden-input" type="text" inputmode="text" autocapitalize="off" spellcheck="false" autofocus />
 
-      <div class="feedback" id="feedbackBox" hidden></div>
-
-      <div class="controls-row">
-        <button id="showAnswerBtn" type="button" class="ghost">显示答案</button>
-        <button id="markKnownBtn" type="button" class="ghost">标为会了</button>
-        <button id="markWrongBtn" type="button" class="ghost danger">加入错题</button>
-      </div>
-
-      <details class="helpbox">
-        <summary>怎么练 xkkp 这种码？</summary>
-        <p>默认模式是四码跟打，页面会把四个字母放在题卡下方，逐字母即时变色，四码全对后自动下一题。想专门记形码，可以切到“掩码”模式，只看拆字提示输入后两码。</p>
-        <p>搜索框可以查字、查完整码、查前两码或后两码。比如搜 <code>xk</code> 会看到同音码下的字，搜 <code>kp</code> 会看到同形码的字。</p>
-      </details>
-
-    <div class="trainer-stats" aria-label="练习统计">
+      <div class="trainer-stats" aria-label="练习统计">
         <div><b id="liveTotal">0</b><span>输入数</span></div>
         <div><b id="liveCorrect">0</b><span>正确数</span></div>
         <div><b id="liveAcc">—</b><span>正确率</span></div>
         <div><b id="liveWrong">0</b><span>错题</span></div>
       </div>
     </section>
-
-    <aside class="panel rightbar">
-      <section>
-        <h2>查码 / 搜索</h2>
-        <div class="searchbar">
-          <input id="searchInput" type="search" placeholder="搜字或编码：形、xkkp、xk、kp" />
-          <button id="searchBtn" type="button" class="ghost">搜索</button>
-        </div>
-        <div id="searchResults" class="results empty">输入字或编码后搜索。</div>
-      </section>
-
-      <section>
-        <h2>最近错题</h2>
-        <div id="wrongList" class="wrong-list empty">还没有错题。</div>
-      </section>
-
-      <section>
-        <h2>手动补充</h2>
-        <p class="hint small">可粘贴 <code>字 xkkp</code>、<code>字\txkkp</code>、<code>字=kp</code>。适合补自己的特殊字。</p>
-        <textarea id="manualText" rows="6" placeholder="形	xkkp\n啊=kk"></textarea>
-        <div class="mini-grid">
-          <button id="manualImportBtn" type="button" class="ghost">导入文本</button>
-          <button id="downloadMistakesBtn" type="button" class="ghost">导出错题</button>
-        </div>
-      </section>
-    </aside>
   </main>
 
   <footer class="footer">
@@ -246,7 +133,17 @@
     </section>
   </div>
 
+  <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite">
+    <div class="loading-mark">鹤</div>
+    <div class="loading-copy">
+      <strong>正在准备小鹤音形</strong>
+      <span id="loadingText">加载码表和拆字数据</span>
+    </div>
+    <div class="loading-bar" aria-hidden="true"><span></span></div>
+  </div>
+
   <script src="data/xhup_codes.js"></script>
+  <script src="data/xhup_words.js"></script>
   <script src="data/xhup_decomp.js"></script>
   <script src="app.js"></script>
 </body>
