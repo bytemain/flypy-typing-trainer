@@ -44,4 +44,4 @@ third_party/rime-crane-xhup/
 
 ## 授权
 
-本项目以 GPL-3.0 发布；内置码表数据也来自 GPL-3.0 相关仓库。分发时请连同 `NOTICE.md`、`LICENSE.GPL-3.0.txt` 和 `third_party/` 一起分发。
+本项目以 GPL-3.0 发布；内置码表数据也来自 GPL-3.0 相关仓库。分发时请连同 `NOTICE.md`、`LICENSE` 和 `third_party/` 一起分发。
