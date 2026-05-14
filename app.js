@@ -21,7 +21,8 @@
     '区': 'qu',
     '的': 'de',
     '句': 'ju',
-    '系': 'xi'
+    '系': 'xi',
+    '见': 'jm'
   };
   const HAN_RE = /[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}]/u;
   const ONE_HAN_RE = /^(?:[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}])$/u;
@@ -438,7 +439,7 @@
   function checkCopyAnswer() {
     const item = state.items.get(state.current.key); if (!item) return;
     const answer = state.copyAnswer;
-    if (state.current.kind === 'copy4' && syncPolyphonicChoice(item, answer)) return checkCopyAnswer();
+    if ((state.current.kind === 'copy4' || state.current.kind === 'mask2') && syncPolyphonicChoice(item, answer)) return checkCopyAnswer();
     const expected = expectedAnswer(state.current.kind, item);
     updateCopyProgress(answer);
     if (answer.length === expected.length && (answer === expected || isAllowedAnswer(item, answer))) {
@@ -598,7 +599,8 @@
     return `<div class="pronunciation-hint"><span>当前读音码 <code>${escapeHtml((item.soundCode || full.slice(0, 2)) || '—')}</code></span></div>`;
   }
   function isAllowedAnswer(item, answer) {
-    if (state.current.kind !== 'copy4') return false;
+    if (state.current.kind !== 'copy4' && state.current.kind !== 'mask2') return false;
+    if (typingPlan(state.current.kind, item).autoSound) return false;
     return (state.charCodes.get(item.char) || []).includes(answer);
   }
   function syncPolyphonicChoice(item, answer) {
