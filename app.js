@@ -605,7 +605,7 @@
     if (!els.searchInput || !els.searchResults) return;
     const q = normalizeAnswer(els.searchInput.value);
     if (!q) { els.searchResults.className='results empty'; els.searchResults.textContent='输入字或编码后搜索。'; return; }
-    const list = Array.from(state.items.values()).filter(item => { const full=item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : ''); return item.char.includes(q) || full.includes(q) || item.soundCode.includes(q) || item.shapeCode.includes(q); }).slice(0,100);
+    const list = Array.from(state.items.values()).filter(item => matchesSearchItem(item, q)).slice(0,100);
     if (!list.length) { els.searchResults.className='results empty'; els.searchResults.textContent='没有找到。'; return; }
     els.searchResults.className='results'; els.searchResults.innerHTML=list.map(renderItem).join('');
   }
@@ -625,10 +625,15 @@
     if (!els.searchInput) return null;
     const q = normalizeAnswer(els.searchInput.value);
     if (!q) return null;
-    return Array.from(state.items.values()).find(item => {
-      const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : '');
-      return item.char.includes(q) || full.includes(q) || item.soundCode.includes(q) || item.shapeCode.includes(q);
-    }) || null;
+    return Array.from(state.items.values()).find(item => matchesSearchItem(item, q)) || null;
+  }
+
+  function matchesSearchItem(item, q) {
+    const char = String(item.char || '');
+    const sound = String(item.soundCode || '');
+    const shape = String(item.shapeCode || '');
+    const full = String(item.fullCode || (sound ? sound + shape : ''));
+    return char.includes(q) || full.includes(q) || sound.includes(q) || shape.includes(q);
   }
 
   function startPracticeByKey(key, forceCopy = false) {
