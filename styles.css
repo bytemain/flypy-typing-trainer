@@ -170,6 +170,7 @@ p { line-height: 1.65; }
   max-height: 100%;
   overflow: auto;
   padding: clamp(0.8rem, 2vw, 1.1rem);
+  position: relative;
 }
 
 .hint { color: var(--muted); margin: 0.35rem 0 0.75rem; }
@@ -510,11 +511,18 @@ html[data-theme="dark"] .root-hint-card small {
 .answerbar input { font-family: var(--mono); font-size: 1.15rem; letter-spacing: 0.06em; }
 
 .hidden-input {
-  position: fixed;
-  left: -100vw;
+  position: absolute;
+  left: 0;
   top: 0;
   width: 1px;
   height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 16px; /* prevents iOS auto-zoom when focused */
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
   opacity: 0;
   pointer-events: none;
 }

@@ -39,7 +39,7 @@
     liveTotal: qs('#liveTotal'), liveCorrect: qs('#liveCorrect'), liveAcc: qs('#liveAcc'), liveWrong: qs('#liveWrong'),
     importSummary: qs('#importSummary'), questionTitle: qs('#questionTitle'), questionSubtitle: qs('#questionSubtitle'),
     modeBadge: qs('#modeBadge'), promptMeta: qs('#promptMeta'), promptMain: qs('#promptMain'), promptSub: qs('#promptSub'),
-    answerForm: qs('#answerForm'), answerInput: qs('#answerInput'), checkBtn: qs('#checkBtn'), feedbackBox: qs('#feedbackBox'),
+    answerForm: qs('#answerForm'), answerInput: qs('#answerInput'), checkBtn: qs('#checkBtn'), feedbackBox: qs('#feedbackBox'), card: qs('#card'), trainer: qs('.trainer'),
     showAnswerBtn: qs('#showAnswerBtn'), markKnownBtn: qs('#markKnownBtn'), markWrongBtn: qs('#markWrongBtn'),
     searchInput: qs('#searchInput'), searchBtn: qs('#searchBtn'), searchResults: qs('#searchResults'), wrongList: qs('#wrongList'),
     manualText: qs('#manualText'), manualImportBtn: qs('#manualImportBtn'), downloadMistakesBtn: qs('#downloadMistakesBtn'),
@@ -95,6 +95,20 @@
       els.answerInput.addEventListener('compositionupdate', onCompositionUpdate);
       els.answerInput.addEventListener('compositionend', onCompositionEnd);
     }
+    // Focus the hidden answer input on user gesture so mobile browsers will
+    // surface the system IME (programmatic focus outside a gesture is ignored
+    // by Android Chrome / iOS Safari and will not pop up the keyboard).
+    const focusAnswerOnGesture = (e) => {
+      if (!els.answerInput) return;
+      const target = e.target;
+      if (target && typeof target.closest === 'function') {
+        if (target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+      }
+      if (document.activeElement === els.answerInput) return;
+      els.answerInput.focus({ preventScroll: true });
+    };
+    if (els.trainer) els.trainer.addEventListener('pointerdown', focusAnswerOnGesture);
+    else if (els.card) els.card.addEventListener('pointerdown', focusAnswerOnGesture);
     if (els.showAnswerBtn) els.showAnswerBtn.addEventListener('click', showAnswer);
     if (els.markKnownBtn) els.markKnownBtn.addEventListener('click', markKnown);
     if (els.markWrongBtn) els.markWrongBtn.addEventListener('click', markWrong);
@@ -457,7 +471,13 @@
 
   function onAnswerInput() {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
-    if (state.composing) return;
+    if (state.composing) {
+      // Mid-composition: keep state.copyAnswer in sync with the input's current
+      // value (which always reflects committed + composing text), but do NOT
+      // rewrite input.value — that would break the IME's composition session.
+      previewComposingAnswer(els.answerInput.value);
+      return;
+    }
     state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
@@ -469,20 +489,24 @@
       e.preventDefault();
       return;
     }
-    if (!state.composing || !e.data) return;
-    previewComposingAnswer(e.data);
+    // While composing, defer to compositionupdate / input handlers which read
+    // the full input.value rather than the (sometimes-incremental) e.data.
   }
 
-  function onCompositionUpdate(e) {
+  function onCompositionUpdate() {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
-    previewComposingAnswer(e.data);
+    previewComposingAnswer(els.answerInput.value);
   }
 
   function onCompositionEnd(e) {
     state.composing = false;
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
-    if (acceptCommittedCharacter(e.data || els.answerInput.value)) return;
-    state.copyAnswer = extractLatinAnswer(e.data || els.answerInput.value, state.copyAnswer);
+    // e.data tells us what (if anything) was committed in this segment — use
+    // it only to detect the target Han character being committed by the IME.
+    if (acceptCommittedCharacter(e.data)) return;
+    // For latin accumulation, always trust the input's current value, which
+    // contains everything typed so far across composition segments.
+    state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
   }
