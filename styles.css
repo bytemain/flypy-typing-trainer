@@ -524,7 +524,11 @@ html[data-theme="dark"] .root-hint-card small {
   color: transparent;
   caret-color: transparent;
   opacity: 0;
-  pointer-events: none;
+  /* Keep pointer-events enabled so mobile browsers (notably iOS Safari)
+     count the input as a real user-interactive control. With
+     `pointer-events: none` the IME is often suppressed even for a
+     synchronous .focus() call inside a user gesture. */
+  pointer-events: auto;
 }
 .feedback {
   margin-top: 0.65rem;
