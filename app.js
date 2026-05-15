@@ -792,8 +792,9 @@
     const letters = String(raw || '').toLowerCase().match(/[a-z]/g);
     if (!letters) return fallback;
     const answer = letters.join('').slice(0, expectedLength);
-    if (incremental && fallback && answer.length === 1) return (fallback + answer).slice(0, expectedLength);
-    if (fallback && answer.length < fallback.length && fallback.endsWith(answer)) return fallback;
+    if (incremental && fallback && !answer.startsWith(fallback)) return (fallback + answer).slice(0, expectedLength);
+    const isCommittedCompositionTail = fallback && answer.length < fallback.length && fallback.endsWith(answer);
+    if (isCommittedCompositionTail) return fallback;
     return answer;
   }
   function saveState(){ const payload={items:Array.from(state.items.values()), sessions:state.sessions, importLog:state.importLog}; localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); }
