@@ -451,10 +451,11 @@
     if (ok) setTimeout(() => { if (state.current && state.current.key === item.key) nextQuestion(); }, 450);
   }
 
-  function onAnswerInput() {
+  function onAnswerInput(e) {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
     if (state.composing) return;
-    state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer);
+    const incremental = !!(e && e.data && /^insert/.test(e.inputType || ''));
+    state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer, incremental);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
   }
@@ -466,7 +467,7 @@
       return;
     }
     if (!state.composing || !e.data) return;
-    previewComposingAnswer(e.data);
+    previewComposingAnswer(e.data, true);
   }
 
   function onCompositionUpdate(e) {
@@ -526,8 +527,8 @@
     }
   }
 
-  function previewComposingAnswer(raw) {
-    const answer = extractLatinAnswer(raw, state.copyAnswer);
+  function previewComposingAnswer(raw, incremental) {
+    const answer = extractLatinAnswer(raw, state.copyAnswer, incremental);
     if (answer === state.copyAnswer) return;
     state.copyAnswer = answer;
     updateCopyProgress(answer);
@@ -786,11 +787,14 @@
     catch (_) { els.answerInput.focus(); }
   }
   function isCodeSeparatorKey(key) { return key === ' ' || key === 'Spacebar' || /^[;',./，。、；‘’“”]$/.test(key); }
-  function extractLatinAnswer(raw, fallback) {
+  function extractLatinAnswer(raw, fallback, incremental) {
     const expectedLength = state.current && state.current.key ? expectedAnswer(state.current.kind, state.items.get(state.current.key) || {}).length : 4;
     const letters = String(raw || '').toLowerCase().match(/[a-z]/g);
     if (!letters) return fallback;
-    return letters.join('').slice(0, expectedLength);
+    const answer = letters.join('').slice(0, expectedLength);
+    if (incremental && fallback && answer.length === 1) return (fallback + answer).slice(0, expectedLength);
+    if (fallback && answer.length < fallback.length && fallback.endsWith(answer)) return fallback;
+    return answer;
   }
   function saveState(){ const payload={items:Array.from(state.items.values()), sessions:state.sessions, importLog:state.importLog}; localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); }
   function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw)return; const payload=JSON.parse(raw); state.items=new Map((payload.items||[]).map(item=>[item.key || `${item.char}\t${item.fullCode || item.shapeCode}`, item])); state.sessions=payload.sessions||{total:0,correct:0}; state.importLog=payload.importLog||[]; state.queue=[]; } catch(e){ console.warn('Failed to load saved state', e); } }
