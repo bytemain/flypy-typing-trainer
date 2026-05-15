@@ -454,7 +454,7 @@
   function onAnswerInput(e) {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
     if (state.composing) return;
-    const inserted = e && isInsertInputType(e.inputType) ? e.data : '';
+    const inserted = e && hasInsertInputType(e.inputType) ? e.data : '';
     state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer, inserted);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
@@ -787,7 +787,7 @@
     catch (_) { els.answerInput.focus(); }
   }
   function isCodeSeparatorKey(key) { return key === ' ' || key === 'Spacebar' || /^[;',./，。、；‘’“”]$/.test(key); }
-  function isInsertInputType(inputType) { return String(inputType || '').startsWith('insert'); }
+  function hasInsertInputType(inputType) { return String(inputType || '').startsWith('insert'); }
   function extractLatinAnswer(raw, fallback, inserted) {
     const expectedLength = state.current && state.current.key ? expectedAnswer(state.current.kind, state.items.get(state.current.key) || {}).length : 4;
     const letters = String(raw || '').toLowerCase().match(/[a-z]/g);
@@ -797,8 +797,8 @@
     const hasFallback = !!fallback;
     const replacesFallback = hasFallback && !answer.startsWith(fallback);
     if (insertedLetters && replacesFallback) return (fallback + insertedLetters.join('')).slice(0, expectedLength);
-    const isPartialCompositionCommit = fallback && answer.length < fallback.length && fallback.endsWith(answer);
     // Some mobile IMEs report only the committed tail on compositionend.
+    const isPartialCompositionCommit = fallback && answer.length < fallback.length && fallback.endsWith(answer);
     if (isPartialCompositionCommit) return fallback;
     return answer;
   }
