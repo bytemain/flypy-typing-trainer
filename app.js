@@ -454,7 +454,7 @@
   function onAnswerInput(e) {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
     if (state.composing) return;
-    const inserted = e && hasInsertInputType(e.inputType) ? e.data : '';
+    const inserted = e && e.inputType && hasInsertInputType(e.inputType) ? e.data : '';
     state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer, inserted);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
@@ -795,8 +795,8 @@
     const answer = letters.join('').slice(0, expectedLength);
     const insertedLetters = String(inserted || '').toLowerCase().match(/[a-z]/g);
     const hasFallback = !!fallback;
-    const replacesFallback = hasFallback && !answer.startsWith(fallback);
-    if (insertedLetters && replacesFallback) return (fallback + insertedLetters.join('')).slice(0, expectedLength);
+    const hasNonPrefixMatch = hasFallback && !answer.startsWith(fallback);
+    if (insertedLetters && hasNonPrefixMatch) return (fallback + insertedLetters.join('')).slice(0, expectedLength);
     // Some mobile IMEs report only the committed tail on compositionend.
     const isPartialCompositionCommit = fallback && answer.length < fallback.length && fallback.endsWith(answer);
     if (isPartialCompositionCommit) return fallback;
