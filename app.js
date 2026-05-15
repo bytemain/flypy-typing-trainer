@@ -478,7 +478,6 @@
   function onCompositionEnd(e) {
     state.composing = false;
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
-    if (acceptCommittedCharacter(e.data || els.answerInput.value)) return;
     state.copyAnswer = extractLatinAnswer(e.data || els.answerInput.value, state.copyAnswer);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
@@ -532,23 +531,6 @@
     if (answer === state.copyAnswer) return;
     state.copyAnswer = answer;
     updateCopyProgress(answer);
-  }
-
-  function acceptCommittedCharacter(raw) {
-    const item = state.items.get(state.current.key);
-    if (!item) return false;
-    const text = String(raw || '').trim();
-    if (!text || !Array.from(text).includes(item.char)) return false;
-    state.copyAnswer = expectedAnswer(state.current.kind, item);
-    els.answerInput.value = state.copyAnswer;
-    updateCopyProgress(state.copyAnswer);
-    applyResult(item, true);
-    state.sessions.total++;
-    state.sessions.correct++;
-    saveState();
-    updateAll();
-    setTimeout(() => { if (state.current && state.current.key === item.key) nextQuestion(); }, 220);
-    return true;
   }
 
   function expectedAnswer(kind, item) { if (kind === 'copy4' || kind === 'mask2') return typingPlan(kind, item).expected; if (kind === 'shape2') return item.shapeCode; if (kind === 'full4') return item.fullCode || (item.soundCode + item.shapeCode); return item.char; }
