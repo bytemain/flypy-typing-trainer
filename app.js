@@ -98,13 +98,21 @@
     // Focus the hidden answer input on user gesture so mobile browsers will
     // surface the system IME (programmatic focus outside a gesture is ignored
     // by Android Chrome / iOS Safari and will not pop up the keyboard).
+    // Notes:
+    //  * We must call .focus() even when the input is already the active
+    //    element. After page load the `autofocus` attribute marks the input
+    //    as activeElement on mobile, but the IME is suppressed; re-focusing
+    //    inside a real user gesture is what actually opens the keyboard.
+    //  * preventDefault() on the pointerdown stops the browser from moving
+    //    focus to the tapped (non-form) ancestor afterwards, which on iOS
+    //    Safari otherwise dismisses the keyboard right after it appears.
     const focusAnswerOnGesture = (e) => {
       if (!els.answerInput) return;
       const target = e.target;
       if (target && typeof target.closest === 'function') {
         if (target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
       }
-      if (document.activeElement === els.answerInput) return;
+      e.preventDefault();
       els.answerInput.focus({ preventScroll: true });
     };
     if (els.trainer) els.trainer.addEventListener('pointerdown', focusAnswerOnGesture);
