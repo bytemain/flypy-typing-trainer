@@ -454,8 +454,8 @@
   function onAnswerInput(e) {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
     if (state.composing) return;
-    const incremental = !!(e && e.data && /^insert/.test(e.inputType || ''));
-    state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer, incremental);
+    const inserted = e && isInsertInputType(e.inputType) ? e.data : '';
+    state.copyAnswer = extractLatinAnswer(els.answerInput.value, state.copyAnswer, inserted);
     els.answerInput.value = state.copyAnswer;
     checkCopyAnswer();
   }
@@ -467,7 +467,7 @@
       return;
     }
     if (!state.composing || !e.data) return;
-    previewComposingAnswer(e.data, true);
+    previewComposingAnswer(e.data, e.data);
   }
 
   function onCompositionUpdate(e) {
@@ -527,8 +527,8 @@
     }
   }
 
-  function previewComposingAnswer(raw, incremental) {
-    const answer = extractLatinAnswer(raw, state.copyAnswer, incremental);
+  function previewComposingAnswer(raw, inserted) {
+    const answer = extractLatinAnswer(raw, state.copyAnswer, inserted);
     if (answer === state.copyAnswer) return;
     state.copyAnswer = answer;
     updateCopyProgress(answer);
@@ -787,14 +787,16 @@
     catch (_) { els.answerInput.focus(); }
   }
   function isCodeSeparatorKey(key) { return key === ' ' || key === 'Spacebar' || /^[;',./，。、；‘’“”]$/.test(key); }
-  function extractLatinAnswer(raw, fallback, incremental) {
+  function isInsertInputType(inputType) { return String(inputType || '').startsWith('insert'); }
+  function extractLatinAnswer(raw, fallback, inserted) {
     const expectedLength = state.current && state.current.key ? expectedAnswer(state.current.kind, state.items.get(state.current.key) || {}).length : 4;
     const letters = String(raw || '').toLowerCase().match(/[a-z]/g);
     if (!letters) return fallback;
     const answer = letters.join('').slice(0, expectedLength);
-    if (incremental && fallback && !answer.startsWith(fallback)) return (fallback + answer).slice(0, expectedLength);
-    const isCommittedCompositionTail = fallback && answer.length < fallback.length && fallback.endsWith(answer);
-    if (isCommittedCompositionTail) return fallback;
+    const insertedLetters = String(inserted || '').toLowerCase().match(/[a-z]/g);
+    if (insertedLetters && fallback && !answer.startsWith(fallback)) return (fallback + insertedLetters.join('')).slice(0, expectedLength);
+    const isPartialCompositionCommit = fallback && answer.length < fallback.length && fallback.endsWith(answer);
+    if (isPartialCompositionCommit) return fallback;
     return answer;
   }
   function saveState(){ const payload={items:Array.from(state.items.values()), sessions:state.sessions, importLog:state.importLog}; localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); }
