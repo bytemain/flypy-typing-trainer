@@ -467,7 +467,7 @@
       return;
     }
     if (!state.composing || !e.data) return;
-    previewComposingAnswer(e.data, e.data);
+    previewComposingAnswer(e.data);
   }
 
   function onCompositionUpdate(e) {
@@ -527,7 +527,7 @@
     }
   }
 
-  function previewComposingAnswer(raw, inserted) {
+  function previewComposingAnswer(raw, inserted = raw) {
     const answer = extractLatinAnswer(raw, state.copyAnswer, inserted);
     if (answer === state.copyAnswer) return;
     state.copyAnswer = answer;
@@ -794,8 +794,11 @@
     if (!letters) return fallback;
     const answer = letters.join('').slice(0, expectedLength);
     const insertedLetters = String(inserted || '').toLowerCase().match(/[a-z]/g);
-    if (insertedLetters && fallback && !answer.startsWith(fallback)) return (fallback + insertedLetters.join('')).slice(0, expectedLength);
+    const hasFallback = !!fallback;
+    const replacesFallback = hasFallback && !answer.startsWith(fallback);
+    if (insertedLetters && replacesFallback) return (fallback + insertedLetters.join('')).slice(0, expectedLength);
     const isPartialCompositionCommit = fallback && answer.length < fallback.length && fallback.endsWith(answer);
+    // Some mobile IMEs report only the committed tail on compositionend.
     if (isPartialCompositionCommit) return fallback;
     return answer;
   }
