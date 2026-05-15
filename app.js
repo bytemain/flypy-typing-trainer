@@ -24,7 +24,8 @@
     '句': 'ju',
     '系': 'xi',
     '见': 'jm',
-    '说': 'uo'
+    '说': 'uo',
+    '着': 'vc'
   };
   const HAN_RE = /[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}]/u;
   const ONE_HAN_RE = /^(?:[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}])$/u;
@@ -38,6 +39,7 @@
     statItems: qs('#statItems'), statDue: qs('#statDue'), statWrong: qs('#statWrong'), statAcc: qs('#statAcc'),
     liveTotal: qs('#liveTotal'), liveCorrect: qs('#liveCorrect'), liveAcc: qs('#liveAcc'), liveWrong: qs('#liveWrong'),
     importSummary: qs('#importSummary'), questionTitle: qs('#questionTitle'), questionSubtitle: qs('#questionSubtitle'),
+    card: qs('#card'),
     modeBadge: qs('#modeBadge'), promptMeta: qs('#promptMeta'), promptMain: qs('#promptMain'), promptSub: qs('#promptSub'),
     answerForm: qs('#answerForm'), answerInput: qs('#answerInput'), checkBtn: qs('#checkBtn'), feedbackBox: qs('#feedbackBox'),
     showAnswerBtn: qs('#showAnswerBtn'), markKnownBtn: qs('#markKnownBtn'), markWrongBtn: qs('#markWrongBtn'),
@@ -95,6 +97,7 @@
       els.answerInput.addEventListener('compositionupdate', onCompositionUpdate);
       els.answerInput.addEventListener('compositionend', onCompositionEnd);
     }
+    if (els.card) els.card.addEventListener('pointerdown', focusAnswerInputNow);
     if (els.showAnswerBtn) els.showAnswerBtn.addEventListener('click', showAnswer);
     if (els.markKnownBtn) els.markKnownBtn.addEventListener('click', markKnown);
     if (els.markWrongBtn) els.markWrongBtn.addEventListener('click', markWrong);
@@ -771,7 +774,12 @@
       span.classList.remove('revealed');
     });
   }
-  function focusAnswerInput() { if (!els.answerInput) return; requestAnimationFrame(() => els.answerInput.focus({ preventScroll: true })); }
+  function focusAnswerInput() { if (!els.answerInput) return; requestAnimationFrame(focusAnswerInputNow); }
+  function focusAnswerInputNow() {
+    if (!els.answerInput) return;
+    try { els.answerInput.focus({ preventScroll: true }); }
+    catch (_) { els.answerInput.focus(); }
+  }
   function isCodeSeparatorKey(key) { return key === ' ' || key === 'Spacebar' || /^[;',./，。、；‘’“”]$/.test(key); }
   function extractLatinAnswer(raw, fallback) {
     const expectedLength = state.current && state.current.key ? expectedAnswer(state.current.kind, state.items.get(state.current.key) || {}).length : 4;

@@ -511,12 +511,19 @@ html[data-theme="dark"] .root-hint-card small {
 
 .hidden-input {
   position: fixed;
-  left: -100vw;
-  top: 0;
+  left: 50%;
+  bottom: max(0px, env(safe-area-inset-bottom));
   width: 1px;
   height: 1px;
-  opacity: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px;
+  opacity: 0.01;
   pointer-events: none;
+  transform: translateX(-50%);
 }
 .feedback {
   margin-top: 0.65rem;
