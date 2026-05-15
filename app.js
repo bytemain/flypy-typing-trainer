@@ -24,8 +24,7 @@
     '句': 'ju',
     '系': 'xi',
     '见': 'jm',
-    '说': 'uo',
-    '着': 'vc'
+    '说': 'uo'
   };
   const HAN_RE = /[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}]/u;
   const ONE_HAN_RE = /^(?:[\u3400-\u9fff\uf900-\ufaff]|[\u{20000}-\u{2EBEF}]|[\u{30000}-\u{3134F}])$/u;
@@ -743,7 +742,7 @@
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
     const item = state.items.get(state.current.key); if (!item) return;
     const plan = typingPlan(state.current.kind, item);
-    const expected = plan.expected;
+    const expected = progressExpectedAnswer(item, plan, answer);
     const offset = plan.offset;
     document.querySelectorAll('.copy-code span').forEach((span, index) => {
       const typed = answer[index - offset];
@@ -755,6 +754,10 @@
       if (!typed) span.classList.toggle('current', index === answer.length + offset);
       else span.classList.add(typed === expected[index - offset] ? 'correct' : 'wrong');
     });
+  }
+  function progressExpectedAnswer(item, plan, answer) {
+    if (plan.autoSound || !answer || !item.fullCode || item.fullCode.startsWith(answer)) return plan.expected;
+    return (state.charCodes.get(item.char) || []).find(code => code.startsWith(answer)) || plan.expected;
   }
   function revealMaskedCode(e) {
     if (!state.current || state.current.kind !== 'mask2') return;
