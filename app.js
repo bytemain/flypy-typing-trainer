@@ -639,11 +639,11 @@
   function startPracticeByKey(key, forceCopy = false) {
     const item = state.items.get(key);
     if (!item) return;
-    const kind = forceCopy && item.fullCode ? 'copy4' : pickMode(item);
-    if (kind === 'copy4') {
+    if (forceCopy) {
       state.mode = 'copy4';
       localStorage.setItem(MODE_KEY, state.mode);
     }
+    const kind = forceCopy && item.fullCode ? 'copy4' : pickMode(item);
     state.current = { key, kind };
     state.copyAnswer = '';
     if (els.answerInput) els.answerInput.value = '';
