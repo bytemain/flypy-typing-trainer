@@ -13,6 +13,7 @@
   --shadow: 0 18px 50px rgba(69, 45, 24, 0.12);
   --radius: 22px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --code-font: "Helvetica Neue", Arial, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
@@ -341,9 +342,9 @@ html[data-theme="dark"] .prompt-main {
   border-radius: 12px;
   background: var(--panel-solid);
   color: var(--accent);
-  font-family: var(--mono);
+  font-family: var(--code-font);
   font-size: 1.45rem;
-  font-weight: 800;
+  font-weight: 850;
   text-transform: uppercase;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
@@ -492,6 +493,7 @@ html[data-theme="dark"] .root-hint-card small {
 }
 .root-hint-card strong {
   color: var(--text);
+  font-family: var(--code-font);
   font-size: 0.92rem;
 }
 .root-hint-card small {
@@ -981,6 +983,51 @@ body {
   margin-top: clamp(1.1rem, 3vh, 2.4rem);
 }
 
+.word-code-wrap {
+  display: grid;
+  justify-items: center;
+  gap: clamp(0.75rem, 1.8vh, 1.1rem);
+}
+
+.word-code-wrap .copy-code {
+  margin-top: clamp(0.8rem, 2vh, 1.5rem);
+}
+
+.word-rule-hints {
+  width: min(760px, 100%);
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.word-rule-card {
+  min-width: clamp(6.2rem, 11vw, 8.5rem);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.56);
+  padding: 0.46rem 0.6rem;
+  display: grid;
+  gap: 0.18rem;
+  text-align: center;
+}
+
+.word-rule-card strong {
+  color: var(--text);
+  font-family: var(--code-font);
+  font-size: clamp(0.9rem, 1.9vh, 1.08rem);
+}
+
+.word-rule-card small {
+  color: var(--muted);
+  font-size: clamp(0.72rem, 1.35vh, 0.82rem);
+}
+
+html[data-theme="dark"] .word-rule-card {
+  background: rgba(54, 44, 35, 0.9);
+  border-color: rgba(255, 216, 169, 0.18);
+}
+
 .copy-cell {
   gap: clamp(0.22rem, 0.7vh, 0.42rem);
 }
@@ -1355,6 +1402,24 @@ html[data-theme="dark"] .footer button {
 
   .root-hint-card small {
     font-size: 0.68rem;
+  }
+
+  .word-rule-hints {
+    gap: 0.38rem;
+  }
+
+  .word-rule-card {
+    min-width: 4.8rem;
+    padding: 0.34rem 0.42rem;
+    border-radius: 10px;
+  }
+
+  .word-rule-card strong {
+    font-size: 0.78rem;
+  }
+
+  .word-rule-card small {
+    font-size: 0.66rem;
   }
 
   .trainer-stats {

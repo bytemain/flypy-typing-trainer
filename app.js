@@ -9,6 +9,7 @@
   const MIDDLE_PARTS_KEY = 'xh_shape_trainer_middle_parts_v1';
   const AUTO_SOUND_KEY = 'xh_shape_trainer_auto_sound_v1';
   const DEFAULT_MODE = 'copy4';
+  const CHAPTERS = ['chars', 'word2', 'word3', 'word4', 'words'];
   const PREFERRED_SOUND_CODES = {
     '提': 'ti',
     '大': 'da',
@@ -65,7 +66,7 @@
     state.mode = ['copy4', 'mask2'].includes(savedMode) ? savedMode : DEFAULT_MODE;
     if (els.modeSelect) els.modeSelect.value = state.mode;
     const savedChapter = localStorage.getItem(CHAPTER_KEY);
-    state.chapter = ['chars', 'words'].includes(savedChapter) ? savedChapter : 'chars';
+    state.chapter = CHAPTERS.includes(savedChapter) ? savedChapter : 'chars';
     if (els.chapterSelect) els.chapterSelect.value = state.chapter;
     if (!state.items.size || !hasWordItems()) loadEmbeddedDeck(true);
     else { updateAll(); setIntro('已恢复上次进度', `共有 ${state.items.size} 个条目，可以继续练习。`); }
@@ -302,11 +303,19 @@
 
   function buildQueue(force = false) {
     if (!force && state.queue.length) return;
-    const scope = state.chapter === 'words' ? 'all' : (els.scopeSelect ? els.scopeSelect.value : 'core');
+    const scope = isWordChapter(state.chapter) ? 'all' : (els.scopeSelect ? els.scopeSelect.value : 'core');
     const filter = els.filterInput ? els.filterInput.value.trim().toLowerCase() : '';
     const now = Date.now();
     let items = Array.from(state.items.values()).filter(item => item.shapeCode);
-    items = items.filter(item => (state.chapter === 'words') ? item.kind === 'word' : item.kind !== 'word');
+    items = items.filter(item => {
+      if (!isWordChapter(state.chapter)) return item.kind !== 'word';
+      if (item.kind !== 'word') return false;
+      const length = Array.from(item.char).length;
+      if (state.chapter === 'word2') return length === 2;
+      if (state.chapter === 'word3') return length === 3;
+      if (state.chapter === 'word4') return length >= 4;
+      return true;
+    });
     if (filter) {
       items = items.filter(item => {
         const src = item.sources.join(' ').toLowerCase(); const full = item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : '');
@@ -366,7 +375,7 @@
   }
 
   function setChapter(chapter) {
-    state.chapter = chapter === 'words' ? 'words' : 'chars';
+    state.chapter = CHAPTERS.includes(chapter) ? chapter : 'chars';
     if (els.chapterSelect) els.chapterSelect.value = state.chapter;
     localStorage.setItem(CHAPTER_KEY, state.chapter);
     state.queue = [];
@@ -375,6 +384,10 @@
     if (els.answerInput) els.answerInput.value = '';
     buildQueue(true);
     nextQuestion();
+  }
+
+  function isWordChapter(chapter) {
+    return chapter === 'words' || chapter === 'word2' || chapter === 'word3' || chapter === 'word4';
   }
 
   function updateModeTabs() {
@@ -714,7 +727,38 @@
       const shown = masked ? '•' : ch;
       return `<div class="copy-cell word-cell${masked ? ' masked' : ''}"><em aria-hidden="true">&nbsp;</em><span data-code="${escapeHtml(ch)}">${escapeHtml(shown)}</span></div>`;
     }).join('');
-    return `<div class="copy-code word-code" aria-label="词的全码">${letters}</div>`;
+    return `<div class="word-code-wrap"><div class="copy-code word-code" aria-label="词的全码">${letters}</div>${renderWordRuleHints(item, masked)}</div>`;
+  }
+
+  function renderWordRuleHints(item, masked) {
+    const chunks = wordRuleChunks(item);
+    if (!chunks.length) return '';
+    return `<div class="word-rule-hints" aria-label="构词规则拆解">${chunks.map(chunk => `<div class="word-rule-card"><strong>${escapeHtml(masked ? chunk.maskedText : chunk.text)}</strong><small>${escapeHtml(chunk.note)}</small></div>`).join('')}</div>`;
+  }
+
+  function wordRuleChunks(item) {
+    const chars = Array.from(item.char || '');
+    const code = item.fullCode || '';
+    if (chars.length < 2 || code.length < 4) return [];
+    if (chars.length === 2) {
+      return [
+        { text: `${chars[0]} = ${code.slice(0, 2)}`, maskedText: chars[0], note: '首字前两码' },
+        { text: `${chars[1]} = ${code.slice(2, 4)}`, maskedText: chars[1], note: '末字前两码' }
+      ];
+    }
+    if (chars.length === 3) {
+      return [
+        { text: `${chars[0]} = ${code[0]}`, maskedText: chars[0], note: '首字首码' },
+        { text: `${chars[1]} = ${code[1]}`, maskedText: chars[1], note: '次字首码' },
+        { text: `${chars[2]} = ${code.slice(2, 4)}`, maskedText: chars[2], note: '末字前两码' }
+      ];
+    }
+    return [
+      { text: `${chars[0]} = ${code[0]}`, maskedText: chars[0], note: '首字首码' },
+      { text: `${chars[1]} = ${code[1]}`, maskedText: chars[1], note: '次字首码' },
+      { text: `${chars[2]} = ${code[2]}`, maskedText: chars[2], note: '三字首码' },
+      { text: `${chars[chars.length - 1]} = ${code[3]}`, maskedText: chars[chars.length - 1], note: '末字首码' }
+    ];
   }
 
   function getMiddleParts(decomp) {
