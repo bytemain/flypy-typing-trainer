@@ -43,7 +43,7 @@
     showAnswerBtn: qs('#showAnswerBtn'), markKnownBtn: qs('#markKnownBtn'), markWrongBtn: qs('#markWrongBtn'),
     searchInput: qs('#searchInput'), searchBtn: qs('#searchBtn'), searchResults: qs('#searchResults'), wrongList: qs('#wrongList'),
     manualText: qs('#manualText'), manualImportBtn: qs('#manualImportBtn'), downloadMistakesBtn: qs('#downloadMistakesBtn'),
-    exportBtn: qs('#exportBtn'), importProgressInput: qs('#importProgressInput'), settingsResetBtn: qs('#settingsResetBtn'), chapterSelect: qs('#chapterSelect'), themeBtn: qs('#themeBtn'), settingsBtn: qs('#settingsBtn'), settingsModal: qs('#settingsModal'), middlePartsInput: qs('#middlePartsInput'), autoSoundInput: qs('#autoSoundInput'), noticeBtn: qs('#noticeBtn'), noticeModal: qs('#noticeModal'), loadingScreen: qs('#loadingScreen'), loadingText: qs('#loadingText')
+    exportBtn: qs('#exportBtn'), importProgressInput: qs('#importProgressInput'), settingsResetBtn: qs('#settingsResetBtn'), chapterSelect: qs('#chapterSelect'), searchOpenBtn: qs('#searchOpenBtn'), searchModal: qs('#searchModal'), themeBtn: qs('#themeBtn'), settingsBtn: qs('#settingsBtn'), settingsModal: qs('#settingsModal'), middlePartsInput: qs('#middlePartsInput'), autoSoundInput: qs('#autoSoundInput'), noticeBtn: qs('#noticeBtn'), noticeModal: qs('#noticeModal'), loadingScreen: qs('#loadingScreen'), loadingText: qs('#loadingText')
   };
   els.modeTabs = Array.from(document.querySelectorAll('.mode-tabs [data-mode]'));
 
@@ -98,8 +98,12 @@
     if (els.showAnswerBtn) els.showAnswerBtn.addEventListener('click', showAnswer);
     if (els.markKnownBtn) els.markKnownBtn.addEventListener('click', markKnown);
     if (els.markWrongBtn) els.markWrongBtn.addEventListener('click', markWrong);
+    if (els.searchOpenBtn) els.searchOpenBtn.addEventListener('click', openSearch);
     if (els.searchBtn) els.searchBtn.addEventListener('click', renderSearch);
-    if (els.searchInput) els.searchInput.addEventListener('input', debounce(renderSearch, 120));
+    if (els.searchInput) {
+      els.searchInput.addEventListener('input', debounce(renderSearch, 120));
+      els.searchInput.addEventListener('keydown', onSearchKeydown);
+    }
     if (els.filterInput) els.filterInput.addEventListener('input', debounce(() => { buildQueue(true); updateStats(); }, 180));
     if (els.modeSelect) els.modeSelect.addEventListener('change', () => setPracticeMode(els.modeSelect.value));
     els.modeTabs.forEach(btn => btn.addEventListener('click', () => setPracticeMode(btn.dataset.mode)));
@@ -123,9 +127,11 @@
     window.addEventListener('pointerup', hideMaskedCode);
     window.addEventListener('pointercancel', hideMaskedCode);
     if (els.settingsModal) els.settingsModal.querySelectorAll('[data-close-settings]').forEach(el => el.addEventListener('click', closeSettings));
+    if (els.searchModal) els.searchModal.querySelectorAll('[data-close-search]').forEach(el => el.addEventListener('click', closeSearch));
     if (els.noticeModal) els.noticeModal.querySelectorAll('[data-close-notice]').forEach(el => el.addEventListener('click', closeNotice));
     window.addEventListener('keydown', e => {
       if (e.key === 'Escape' && els.settingsModal && !els.settingsModal.hidden) { closeSettings(); return; }
+      if (e.key === 'Escape' && els.searchModal && !els.searchModal.hidden) { closeSearch(); return; }
       if (e.key === 'Escape' && els.noticeModal && !els.noticeModal.hidden) { closeNotice(); return; }
       if (handleCopyKeydown(e)) return;
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isTyping()) {
@@ -599,13 +605,54 @@
     if (!els.searchInput || !els.searchResults) return;
     const q = normalizeAnswer(els.searchInput.value);
     if (!q) { els.searchResults.className='results empty'; els.searchResults.textContent='输入字或编码后搜索。'; return; }
-    const list = Array.from(state.items.values()).filter(item => { const full=item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : ''); return item.char.includes(q) || full.includes(q) || item.soundCode.includes(q) || item.shapeCode.includes(q); }).slice(0,100);
+    const list = Array.from(state.items.values()).filter(item => matchesSearchItem(item, q)).slice(0,100);
     if (!list.length) { els.searchResults.className='results empty'; els.searchResults.textContent='没有找到。'; return; }
     els.searchResults.className='results'; els.searchResults.innerHTML=list.map(renderItem).join('');
   }
   function renderWrongList() { if (!els.wrongList) return; const wrongs=Array.from(state.items.values()).filter(i=>i.wrong>0).sort((a,b)=>b.wrong-a.wrong||b.updatedAt-a.updatedAt).slice(0,30); if(!wrongs.length){els.wrongList.className='wrong-list empty';els.wrongList.textContent='还没有错题。';return;} els.wrongList.className='wrong-list';els.wrongList.innerHTML=wrongs.map(renderItem).join(''); }
   function renderItem(item) { const full=item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`); const src=item.sources[0] ? item.sources[0].replace(/^.*\//,'') : '手动/未知来源'; return `<div class="result-item" title="${escapeHtml(item.sources.join('\n'))}"><div class="result-char">${escapeHtml(item.char)}</div><div><div class="result-code">${escapeHtml(full)} <span class="result-meta">前两码 ${escapeHtml(item.soundCode||'—')} · 后两码 ${escapeHtml(item.shapeCode||'—')}</span>${item.common?'<span class="pill">常用</span>':''}</div><div class="result-meta">见 ${item.seen} · 对 ${item.correct} · 错 ${item.wrong} · ${escapeHtml(src)}</div></div><button class="ghost" type="button" onclick="window.__xhTrainerPick('${encodeURIComponent(item.key)}')">练</button></div>`; }
-  window.__xhTrainerPick = function(encodedKey){ const key=decodeURIComponent(encodedKey); if(!state.items.has(key))return; state.current={key,kind:pickMode(state.items.get(key))}; renderQuestion(); clearFeedback(); focusAnswerInput(); };
+  window.__xhTrainerPick = function(encodedKey){ startPracticeByKey(decodeURIComponent(encodedKey), true); };
+
+  function onSearchKeydown(e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const item = firstSearchResult();
+    if (!item) return toast('没有找到可练习的字。');
+    startPracticeByKey(item.key, true);
+  }
+
+  function firstSearchResult() {
+    if (!els.searchInput) return null;
+    const q = normalizeAnswer(els.searchInput.value);
+    if (!q) return null;
+    return Array.from(state.items.values()).find(item => matchesSearchItem(item, q)) || null;
+  }
+
+  function matchesSearchItem(item, q) {
+    const char = String(item.char || '');
+    const sound = String(item.soundCode || '');
+    const shape = String(item.shapeCode || '');
+    const full = String(item.fullCode || (sound ? sound + shape : ''));
+    return char.includes(q) || full.includes(q) || sound.includes(q) || shape.includes(q);
+  }
+
+  function startPracticeByKey(key, forceCopy = false) {
+    const item = state.items.get(key);
+    if (!item) return;
+    const canCopy = forceCopy && item.fullCode;
+    if (canCopy) {
+      state.mode = 'copy4';
+      localStorage.setItem(MODE_KEY, state.mode);
+    }
+    const kind = canCopy ? 'copy4' : pickMode(item);
+    state.current = { key, kind };
+    state.copyAnswer = '';
+    if (els.answerInput) els.answerInput.value = '';
+    closeSearch();
+    renderQuestion();
+    clearFeedback();
+    focusAnswerInput();
+  }
 
   function importManual() { if (!els.manualText) return; const text=els.manualText.value; if(!text.trim()) return toast('先粘贴一点码表内容。'); const res=parseTextToEntries(text,'manual'); mergeParsed(res.records); state.importLog.unshift(res.log); saveState(); buildQueue(true); updateAll(); setIntro('手动导入完成',`导入 ${res.log.used} 条可用记录。`); toast(`手动导入 ${res.log.used} 条。`); }
   function resetProgress() { const ok=confirm('确定清空练习进度吗？内置码表会保留/重新载入。'); if(!ok)return; state.items.clear(); state.sessions={total:0,correct:0}; state.importLog=[]; state.current=null; state.queue=[]; localStorage.removeItem(STORAGE_KEY); loadEmbeddedDeck(false); updateAll(); }
@@ -789,6 +836,19 @@
   function setMiddleParts(enabled){ state.showMiddleParts = !!enabled; localStorage.setItem(MIDDLE_PARTS_KEY, state.showMiddleParts ? '1' : '0'); updateSettingsToggles(); renderQuestion(); focusAnswerInput(); }
   function setAutoSoundCode(enabled){ state.autoSoundCode = !!enabled; state.copyAnswer = ''; if (els.answerInput) els.answerInput.value = ''; localStorage.setItem(AUTO_SOUND_KEY, state.autoSoundCode ? '1' : '0'); updateSettingsToggles(); renderQuestion(); focusAnswerInput(); }
   function updateSettingsToggles(){ if (els.middlePartsInput) els.middlePartsInput.checked = state.showMiddleParts; if (els.autoSoundInput) els.autoSoundInput.checked = state.autoSoundCode; }
+  function openSearch(){
+    if (!els.searchModal) return;
+    els.searchModal.hidden=false;
+    document.body.classList.add('modal-open');
+    renderSearch();
+    requestAnimationFrame(() => {
+      if (els.searchInput) {
+        els.searchInput.focus({ preventScroll: true });
+        els.searchInput.select();
+      }
+    });
+  }
+  function closeSearch(){ if (!els.searchModal) return; els.searchModal.hidden=true; document.body.classList.remove('modal-open'); focusAnswerInput(); }
   function openSettings(){ if (!els.settingsModal) return; updateSettingsToggles(); els.settingsModal.hidden=false; document.body.classList.add('modal-open'); }
   function closeSettings(){ if (!els.settingsModal) return; els.settingsModal.hidden=true; document.body.classList.remove('modal-open'); focusAnswerInput(); }
   function openNotice(){ if (!els.noticeModal) return; els.noticeModal.hidden=false; document.body.classList.add('modal-open'); }
