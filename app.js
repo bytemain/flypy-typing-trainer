@@ -756,7 +756,9 @@
     });
   }
   function progressExpectedAnswer(item, plan, answer) {
-    if (plan.autoSound || !answer || !item.fullCode || item.fullCode.startsWith(answer)) return plan.expected;
+    if (plan.autoSound) return plan.expected;
+    if (!answer || !item.fullCode) return plan.expected;
+    if (item.fullCode.startsWith(answer)) return plan.expected;
     return (state.charCodes.get(item.char) || []).find(code => code.startsWith(answer)) || plan.expected;
   }
   function revealMaskedCode(e) {
