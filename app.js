@@ -543,6 +543,7 @@
 
   function handleCopyKeydown(e) {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return false;
+    // Let focused form fields (for example the search input) handle editing keys.
     if (isTyping()) return false;
     if (state.composing || e.isComposing || e.key === 'Process') return false;
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
