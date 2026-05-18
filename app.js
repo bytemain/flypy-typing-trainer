@@ -49,7 +49,7 @@
   els.modeTabs = Array.from(document.querySelectorAll('.mode-tabs [data-mode]'));
 
   const state = {
-    items: new Map(), sessions: { total: 0, correct: 0 }, importLog: [], current: null, queue: [], rootMap: new Map(), charCodes: new Map(), composing: false, copyAnswer: '', mode: DEFAULT_MODE, chapter: 'chars', showMiddleParts: false, autoSoundCode: false
+    items: new Map(), sessions: { total: 0, correct: 0 }, importLog: [], current: null, queue: [], rootMap: new Map(), charCodes: new Map(), composing: false, searchComposing: false, copyAnswer: '', mode: DEFAULT_MODE, chapter: 'chars', showMiddleParts: false, autoSoundCode: false
   };
 
   init();
@@ -124,7 +124,16 @@
     if (els.searchOpenBtn) els.searchOpenBtn.addEventListener('click', openSearch);
     if (els.searchBtn) els.searchBtn.addEventListener('click', renderSearch);
     if (els.searchInput) {
-      els.searchInput.addEventListener('input', debounce(renderSearch, 120));
+      const debouncedRender = debounce(renderSearch, 200);
+      // Do not run the heavy filter+re-render mid IME composition: it both
+      // wastes work on partial pinyin and can disrupt the IME session on
+      // some browsers (input appears to "freeze" until composition ends).
+      els.searchInput.addEventListener('input', (e) => {
+        if (state.searchComposing || e.isComposing) return;
+        debouncedRender();
+      });
+      els.searchInput.addEventListener('compositionstart', () => { state.searchComposing = true; });
+      els.searchInput.addEventListener('compositionend', () => { state.searchComposing = false; debouncedRender(); });
       els.searchInput.addEventListener('keydown', onSearchKeydown);
     }
     if (els.filterInput) els.filterInput.addEventListener('input', debounce(() => { buildQueue(true); updateStats(); }, 180));
@@ -648,11 +657,33 @@
 
   function renderSearch() {
     if (!els.searchInput || !els.searchResults) return;
+    // Skip the heavy filter+DOM write when the search panel is not visible.
+    // Several flows (updateAll on answer submit etc.) used to invoke this
+    // even though the user never opened the search modal.
+    if (els.searchModal && els.searchModal.hidden) return;
     const q = normalizeAnswer(els.searchInput.value);
     if (!q) { els.searchResults.className='results empty'; els.searchResults.textContent='输入字或编码后搜索。'; return; }
-    const list = Array.from(state.items.values()).filter(item => matchesSearchItem(item, q)).slice(0,100);
+    // Cap the scan as well as the rendered slice — with all chapters loaded
+    // state.items can hold 15k+ entries and a tight loop with early exit is
+    // noticeably faster than building an intermediate array via filter().
+    const LIMIT = 100;
+    const list = [];
+    for (const item of state.items.values()) {
+      if (matchesSearchItem(item, q)) {
+        list.push(item);
+        if (list.length >= LIMIT) break;
+      }
+    }
     if (!list.length) { els.searchResults.className='results empty'; els.searchResults.textContent='没有找到。'; return; }
-    els.searchResults.className='results'; els.searchResults.innerHTML=list.map(renderItem).join('');
+    // Defer the DOM write to the next frame so the input handler returns
+    // quickly and the browser can keep the input field responsive.
+    const html = list.map(renderItem).join('');
+    if (state._searchRaf) cancelAnimationFrame(state._searchRaf);
+    state._searchRaf = requestAnimationFrame(() => {
+      state._searchRaf = 0;
+      els.searchResults.className='results';
+      els.searchResults.innerHTML = html;
+    });
   }
   function renderWrongList() { if (!els.wrongList) return; const wrongs=Array.from(state.items.values()).filter(i=>i.wrong>0).sort((a,b)=>b.wrong-a.wrong||b.updatedAt-a.updatedAt).slice(0,30); if(!wrongs.length){els.wrongList.className='wrong-list empty';els.wrongList.textContent='还没有错题。';return;} els.wrongList.className='wrong-list';els.wrongList.innerHTML=wrongs.map(renderItem).join(''); }
   function renderItem(item) { const full=item.fullCode || (item.soundCode ? item.soundCode + item.shapeCode : `??${item.shapeCode}`); const src=item.sources[0] ? item.sources[0].replace(/^.*\//,'') : '手动/未知来源'; return `<div class="result-item" title="${escapeHtml(item.sources.join('\n'))}"><div class="result-char">${escapeHtml(item.char)}</div><div><div class="result-code">${escapeHtml(full)} <span class="result-meta">前两码 ${escapeHtml(item.soundCode||'—')} · 后两码 ${escapeHtml(item.shapeCode||'—')}</span>${item.common?'<span class="pill">常用</span>':''}</div><div class="result-meta">见 ${item.seen} · 对 ${item.correct} · 错 ${item.wrong} · ${escapeHtml(src)}</div></div><button class="ghost" type="button" onclick="window.__xhTrainerPick('${encodeURIComponent(item.key)}')">练</button></div>`; }
