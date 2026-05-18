@@ -13,6 +13,7 @@
 - 多音字容错：默认展示第一个读音码，但输入其他可接受读音码也能通过。
 - 中文输入法兼容：支持普通英文键入，也支持输入法 composition 上屏当前汉字。
 - 本地进度：练习进度保存在浏览器 `localStorage`，不会上传。
+- 简码提示：每张卡片上方会标出当前字 / 词的一码 / 二码简码（来自小鹤一简、二简、一简词等码表），帮助记忆「实际打字时其实少敲两键就够」。
 
 ## 本地运行
 
@@ -41,6 +42,8 @@ https://www.flypy.cc/ix/ixdata.json
 ```text
 third_party/rime-crane-xhup/
 ```
+
+`data/xhup_shortcodes.js` 是从原始码表中提取出的「一码 / 二码简码」索引，供练习界面在每张卡片上展示简码徽章。可用 `python3 tools/build_shortcodes.py` 重新生成。
 
 ## 授权
 

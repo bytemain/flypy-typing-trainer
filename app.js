@@ -49,7 +49,7 @@
   els.modeTabs = Array.from(document.querySelectorAll('.mode-tabs [data-mode]'));
 
   const state = {
-    items: new Map(), sessions: { total: 0, correct: 0 }, importLog: [], current: null, queue: [], rootMap: new Map(), charCodes: new Map(), composing: false, copyAnswer: '', mode: DEFAULT_MODE, chapter: 'chars', showMiddleParts: false, autoSoundCode: false
+    items: new Map(), sessions: { total: 0, correct: 0 }, importLog: [], current: null, queue: [], rootMap: new Map(), charCodes: new Map(), composing: false, copyAnswer: '', mode: DEFAULT_MODE, chapter: 'chars', showMiddleParts: false, autoSoundCode: false, shortcuts: { chars: {}, words: {} }
   };
 
   init();
@@ -70,6 +70,7 @@
     if (els.chapterSelect) els.chapterSelect.value = state.chapter;
     if (!state.items.size || !hasWordItems()) loadEmbeddedDeck(true);
     else { updateAll(); setIntro('已恢复上次进度', `共有 ${state.items.size} 个条目，可以继续练习。`); }
+    loadShortcutTable();
     buildCharCodeMap();
     buildRootMap();
     nextQuestion();
@@ -415,7 +416,7 @@
     if (els.questionTitle) els.questionTitle.textContent = quiz.kind === 'shape2' ? '想后两码' : quiz.kind === 'copy4' ? '跟打完整四码' : quiz.kind === 'mask2' ? '看拆字想后两码' : quiz.kind === 'full4' ? '打完整四码' : '看码认字';
     if (item.kind === 'word') {
       const plan = typingPlan(quiz.kind, item);
-      els.promptMeta.textContent = '词组';
+      setPromptMeta('词组', item);
       els.promptMain.textContent = item.char;
       els.promptMain.className = `prompt-main word-prompt word-len-${Math.min(Array.from(item.char).length, 8)}`;
       els.promptSub.innerHTML = renderWordCode(item, quiz.kind === 'mask2');
@@ -432,13 +433,13 @@
     } else if (quiz.kind === 'shape2') {
       const decomp = getDecomp(item);
       els.promptMain.className = 'prompt-main';
-      els.promptMeta.textContent = '后两码'; els.promptMain.textContent = item.char;
+      setPromptMeta('后两码', item); els.promptMain.textContent = item.char;
       els.promptSub.innerHTML = item.soundCode ? `前两码：<code>${escapeHtml(item.soundCode)}</code>${renderShapeHint(item, decomp)}` : `请输入它的形码后两码${renderShapeHint(item, decomp)}`;
       if (els.questionSubtitle) els.questionSubtitle.textContent = item.soundCode ? `${item.char} = ${item.soundCode} + ?${decomp.structure ? `，后两码拆作 ${decomp.structure}` : ''}` : '该条目来自辅码表，只有后两码。';
       if (els.answerInput) els.answerInput.placeholder = '例如 kp';
     } else if (quiz.kind === 'copy4') {
       const plan = typingPlan(quiz.kind, item);
-      els.promptMeta.textContent = '跟打';
+      setPromptMeta('跟打', item);
       els.promptMain.className = 'prompt-main';
       els.promptMain.textContent = item.char;
       els.promptSub.innerHTML = renderCodeBreakdown(item, { showRootHints: true, maskedHints: false });
@@ -455,7 +456,7 @@
     } else if (quiz.kind === 'mask2') {
       const decomp = getDecomp(item);
       const plan = typingPlan(quiz.kind, item);
-      els.promptMeta.textContent = '掩码';
+      setPromptMeta('掩码', item);
       els.promptMain.className = 'prompt-main';
       els.promptMain.textContent = item.char;
       els.promptSub.innerHTML = renderCodeBreakdown(item, { maskShape: true, maskSound: !plan.autoSound, showRootHints: true, maskedHints: true });
@@ -471,12 +472,12 @@
       updateCopyProgress('');
     } else if (quiz.kind === 'full4') {
       els.promptMain.className = 'prompt-main';
-      els.promptMeta.textContent = '完整四码'; els.promptMain.textContent = item.char; els.promptSub.innerHTML = `请输入完整码；提示：后两码是你要练的部分`;
+      setPromptMeta('完整四码', item); els.promptMain.textContent = item.char; els.promptSub.innerHTML = `请输入完整码；提示：后两码是你要练的部分`;
       if (els.questionSubtitle) els.questionSubtitle.textContent = `${item.char} 的完整码是什么？`;
       if (els.answerInput) els.answerInput.placeholder = '例如 xkkp';
     } else {
       els.promptMain.className = 'prompt-main';
-      els.promptMeta.textContent = '认码'; els.promptMain.textContent = full; els.promptSub.innerHTML = `请输入这个编码对应的字`;
+      setPromptMeta('认码', item); els.promptMain.textContent = full; els.promptSub.innerHTML = `请输入这个编码对应的字`;
       if (els.questionSubtitle) els.questionSubtitle.textContent = `看到 ${full}，能想到哪个字？`;
       if (els.answerInput) els.answerInput.placeholder = '输入汉字';
     }
@@ -858,6 +859,46 @@
     if (!decomp.structure) return `，后两码：${shape}`;
     const components = decomp.components && decomp.components !== decomp.structure ? `<div class="component-line">完整拆分：<code>${escapeHtml(decomp.components)}</code></div>` : '';
     return `，后两码：${shape}<div class="shape-hint"><span>${escapeHtml(decomp.structure)}</span></div>${components}`;
+  }
+  function loadShortcutTable() {
+    const src = (typeof window !== 'undefined' && window.XHUP_SHORTCUTS) ? window.XHUP_SHORTCUTS : null;
+    state.shortcuts = {
+      chars: (src && src.chars) ? src.chars : {},
+      words: (src && src.words) ? src.words : {}
+    };
+  }
+  function getShortcutEntries(item) {
+    if (!item || !item.char) return [];
+    const bucket = item.kind === 'word' ? state.shortcuts.words : state.shortcuts.chars;
+    const list = bucket && bucket[item.char];
+    return Array.isArray(list) ? list : [];
+  }
+  function shortcutTagLabel(tag, codeLen, isWord) {
+    if (tag === 'single') return '一简词';
+    if (tag === 'secondary') return codeLen === 1 ? '一简次选' : '二简次选';
+    // primary
+    if (codeLen === 1) return isWord ? '一简词' : '一简字';
+    return isWord ? '二简词' : '二简字';
+  }
+  function renderShortcutBadge(item) {
+    const entries = getShortcutEntries(item);
+    if (!entries.length) return '';
+    const isWord = item.kind === 'word';
+    const chips = entries.map(e => {
+      const code = String(e.c || '');
+      const tag = String(e.t || 'primary');
+      const label = shortcutTagLabel(tag, code.length, isWord);
+      const tip = code.length === 1
+        ? `${item.char}：按 ${code} 一键即可上屏${tag === 'secondary' ? '（次选）' : ''}`
+        : `${item.char}：按 ${code} 两键即可上屏${tag === 'secondary' ? '（次选）' : ''}`;
+      return `<span class="shortcut-chip shortcut-chip--${tag} shortcut-chip--len${code.length}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}"><em>${escapeHtml(label)}</em><b>${escapeHtml(code)}</b></span>`;
+    }).join('');
+    return `<span class="shortcut-badges" aria-label="简码提示">${chips}</span>`;
+  }
+  function setPromptMeta(label, item) {
+    if (!els.promptMeta) return;
+    const badge = item ? renderShortcutBadge(item) : '';
+    els.promptMeta.innerHTML = `<span class="prompt-meta-label">${escapeHtml(label)}</span>${badge}`;
   }
   function updateCopyProgress(answer) {
     if (!state.current || (state.current.kind !== 'copy4' && state.current.kind !== 'mask2')) return;
