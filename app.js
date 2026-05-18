@@ -8,7 +8,7 @@
   const CHAPTER_KEY = 'xh_shape_trainer_chapter_v1';
   const MIDDLE_PARTS_KEY = 'xh_shape_trainer_middle_parts_v1';
   const AUTO_SOUND_KEY = 'xh_shape_trainer_auto_sound_v1';
-  const DEFAULT_MODE = 'copy4';
+  const DEFAULT_MODE = 'mask2';
   const CHAPTERS = ['chars', 'word2', 'word3', 'word4', 'words'];
   const PREFERRED_SOUND_CODES = {
     '提': 'ti',
